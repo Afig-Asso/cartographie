@@ -164,9 +164,11 @@ function fly_to(bounds) {
 
 function create_map() {
     const embedded = document.documentElement.classList.contains('embedded');
-    // molette : zoom continu et réactif (pas de paliers, peu d'attente entre deux crans, ~1 niveau pour 80 px de défilement)
-    const map = L.map('map', {'zoomControl': false, 'scrollWheelZoom': !embedded, 'minZoom': 4, 'maxZoom': 18, 'zoomSnap': 0, 'zoomDelta': 0.5,
-        'wheelDebounceTime': 10, 'wheelPxPerZoomLevel': 80, 'worldCopyJump': true});
+    // la molette est gérée par smooth_wheel (celle de Leaflet perd les crans qui arrivent pendant une animation)
+    const map = L.map('map', {'zoomControl': false, 'scrollWheelZoom': false, 'minZoom': 4, 'maxZoom': 18, 'zoomSnap': 0, 'zoomDelta': 0.5,
+        'worldCopyJump': true});
+    STATE.wheel = !embedded;
+    smooth_wheel(map, () => STATE.wheel);
     // fond gris clair et discret (les repères de couleur ressortent), noms des lieux par-dessus
     const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
     L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
@@ -176,8 +178,8 @@ function create_map() {
     L.control.zoom({'position': 'bottomright', 'zoomInTitle': 'Zoomer', 'zoomOutTitle': 'Dézoomer'}).addTo(map);
     if(embedded) { // dans le site de l'AFIG, la molette fait défiler la page tant qu'on n'a pas cliqué la carte
         $('#wheel-hint').hidden = false;
-        map.on('click focus', () => { map.scrollWheelZoom.enable(); $('#wheel-hint').hidden = true; });
-        map.on('mouseout blur', () => map.scrollWheelZoom.disable());
+        map.on('click focus', () => { STATE.wheel = true; $('#wheel-hint').hidden = true; });
+        map.on('mouseout blur', () => { STATE.wheel = false; });
     }
     STATE.groups.companies = L.markerClusterGroup({
         'showCoverageOnHover': false, 'maxClusterRadius': 48, 'spiderfyOnMaxZoom': true, 'disableClusteringAtZoom': DOTS_ZOOM,
@@ -193,8 +195,42 @@ function create_map() {
             return L.divIcon({'className': 'pin diamond', 'html': `<span>${N}</span>`, 'iconSize': [30, 30]});
         },
     }).addTo(map);
-    map.on('zoomend', spread);
+    let spread_timer = null;  // pendant un zoom continu, zoomend arrive à chaque image : on écarte les points une fois le zoom posé
+    map.on('zoomend', () => { clearTimeout(spread_timer); spread_timer = setTimeout(spread, 120); });
     STATE.map = map;
+}
+
+// Zoom à la molette continu, à la Google Maps : chaque cran (ou geste de trackpad) ajoute au zoom visé, et la
+// carte le rejoint en douceur autour du pointeur ; aucun cran n'est perdu, même pendant le mouvement.
+const WHEEL_PX_PER_LEVEL = 120;  // un cran de souris (100 px) ≈ 0,8 niveau ; un geste de trackpad de 120 px ≈ 1 niveau
+function smooth_wheel(map, enabled) {
+    let target = null, anchor = null, anchor_ll = null, frame = null, timer = null;
+    // le lieu sous le pointeur reste sous le pointeur (calcul exact à chaque image, sans accumuler d'arrondis)
+    const zoom_to = (z) => {
+        const center = map.unproject(map.project(anchor_ll, z).subtract(anchor).add(map.getSize().divideBy(2)), z);
+        map.setView(center, z, {'animate': false});
+    };
+    const finish = () => { if(target!=null) zoom_to(target); target = null; frame = null; };
+    const step = () => {
+        const z = map.getZoom(), diff = target - z;
+        if(Math.abs(diff)<0.01) { finish(); return; }
+        zoom_to(z + diff*0.28);
+        frame = requestAnimationFrame(step);
+    };
+    map.getContainer().addEventListener('wheel', (event) => {
+        if(!enabled()) return;  // la page défile
+        event.preventDefault();
+        let dy = event.deltaY*(event.deltaMode==1 ? 16 : event.deltaMode==2 ? 400 : 1);
+        if(event.ctrlKey) dy *= 3;  // pincement sur trackpad : petits deltas
+        dy = Math.max(-250, Math.min(250, dy));
+        if(target==null) target = map.getZoom();
+        target = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), target - dy/WHEEL_PX_PER_LEVEL));
+        const point = map.mouseEventToContainerPoint(event);
+        if(anchor==null || frame==null || point.distanceTo(anchor)>4) { anchor = point; anchor_ll = map.containerPointToLatLng(point); }
+        if(frame==null) frame = requestAnimationFrame(step);
+        clearTimeout(timer);
+        timer = setTimeout(() => { if(frame!=null) { cancelAnimationFrame(frame); finish(); } }, 900);  // onglet en arrière-plan : finir quand même
+    }, {'passive': false});
 }
 
 // Entreprises au même endroit (souvent le centre de leur ville) : une fois les regroupements défaits,
