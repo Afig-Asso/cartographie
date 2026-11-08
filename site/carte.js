@@ -164,14 +164,15 @@ function fly_to(bounds) {
 
 function create_map() {
     const embedded = document.documentElement.classList.contains('embedded');
-    const map = L.map('map', {'zoomControl': false, 'scrollWheelZoom': !embedded, 'minZoom': 4, 'zoomSnap': 0.5, 'worldCopyJump': true});
+    // molette : zoom continu et réactif (pas de paliers, peu d'attente entre deux crans, ~1 niveau pour 80 px de défilement)
+    const map = L.map('map', {'zoomControl': false, 'scrollWheelZoom': !embedded, 'minZoom': 4, 'maxZoom': 18, 'zoomSnap': 0, 'zoomDelta': 0.5,
+        'wheelDebounceTime': 10, 'wheelPxPerZoomLevel': 80, 'worldCopyJump': true});
     // fond gris clair et discret (les repères de couleur ressortent), noms des lieux par-dessus
     const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
     L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-        'maxZoom': 16, 'attribution': 'Fond de carte &copy; Esri, HERE, Garmin, &copy; contributeurs OpenStreetMap',
+        'maxNativeZoom': 16, 'maxZoom': 18, 'attribution': 'Fond de carte &copy; Esri, HERE, Garmin, &copy; contributeurs OpenStreetMap',
     }).addTo(map);
-    L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {'maxZoom': 16, 'pane': 'shadowPane'}).addTo(map);
-    map.setMaxZoom(16);
+    L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {'maxNativeZoom': 16, 'maxZoom': 18, 'pane': 'shadowPane'}).addTo(map);  // au-delà de 16 : tuiles agrandies
     L.control.zoom({'position': 'bottomright', 'zoomInTitle': 'Zoomer', 'zoomOutTitle': 'Dézoomer'}).addTo(map);
     if(embedded) { // dans le site de l'AFIG, la molette fait défiler la page tant qu'on n'a pas cliqué la carte
         $('#wheel-hint').hidden = false;
