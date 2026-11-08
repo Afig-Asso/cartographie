@@ -129,7 +129,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .team h3 a { color: var(--lab-dark); }
 .team-name { font-size: 0.85rem; color: var(--text-2); margin-top: 2px; }
 .team .desc { margin-top: 6px; }
-.team-sheet { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 0.85rem; font-weight: 600; color: var(--lab-dark); }
+.team-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+.team-sheet { display: inline-flex; align-items: center; gap: 5px; font-size: 0.85rem; font-weight: 600; color: var(--lab-dark); }
 .team-sheet svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .badge { font-size: 0.68rem; font-weight: 700; color: var(--muted); border: 1px solid #c9cdc6; border-radius: 4px; padding: 0 4px; }
 .section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }

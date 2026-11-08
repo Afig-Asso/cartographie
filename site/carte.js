@@ -202,6 +202,9 @@ function create_map() {
     }).addTo(map);
     let spread_timer = null;  // pendant un zoom continu, zoomend arrive à chaque image : on écarte les points une fois le zoom posé
     map.on('zoomend', () => { clearTimeout(spread_timer); spread_timer = setTimeout(spread, 120); });
+    map.on('zoomend moveend', unhide_counts);
+    STATE.groups.companies.on('animationend', unhide_counts);
+    STATE.groups.labs.on('animationend', unhide_counts);
     STATE.map = map;
 }
 
@@ -256,6 +259,32 @@ function spread() {
     STATE.groups.companies.addLayers(moved);
 }
 
+// Un losange d'équipes posé sur un groupe d'entreprises cacherait son nombre : on le décale sur le bord du groupe,
+// à l'écran seulement (CSS translate, qui s'ajoute à la position calculée par Leaflet).
+let unhide_frame = null;
+function unhide_counts() {
+    cancelAnimationFrame(unhide_frame);
+    unhide_frame = requestAnimationFrame(() => {
+        const pane = STATE.map.getPane('markerPane');
+        const labs = [...pane.querySelectorAll('.leaflet-marker-icon.diamond')];
+        labs.forEach((el) => { el.style.translate = ''; });
+        const disc = (el) => { const r = el.getBoundingClientRect(); return {'x': r.left + r.width/2, 'y': r.top + r.height/2, 'r': r.width/2}; };
+        const groups = [...pane.querySelectorAll('.leaflet-marker-icon.cluster-company')].map(disc);
+        for(const el of labs) {
+            const d = disc(el);
+            for(const g of groups) {
+                let dx = d.x - g.x, dy = d.y - g.y;
+                const dist = Math.hypot(dx, dy), want = g.r + 0.55*d.r;
+                if(dist>=want) continue;
+                if(dist<1) { dx = 1; dy = -1; } // même lieu : en haut à droite du groupe
+                const k = want/Math.hypot(dx, dy);
+                el.style.translate = `${Math.round(g.x + dx*k - d.x)}px ${Math.round(g.y + dy*k - d.y)}px`;
+                break;
+            }
+        }
+    });
+}
+
 const matches = (p) => STATE.query=='' || STATE.query.split(/\s+/).every((w) => p.text.includes(w));
 
 function draw_markers() {
@@ -296,6 +325,7 @@ function draw_markers() {
         }));
     }
     spread();
+    unhide_counts();
     $('#count-companies').textContent = new Set(companies.map((p) => p.k)).size;
     $('#count-labs').textContent = teams.length;
 }
@@ -361,11 +391,13 @@ function company_html(p) {
 function team_html(p) {
     const team = p.team || {}, lab = p.lab;
     const themes = team['Thèmes'] ?? lab['Thèmes'];
-    const url = team['URL'] || lab['URL'];
+    const url = team['URL'] || (p.team_key ? '' : lab['URL']);
     const title = p.team_key ? esc(p.team_key) : esc(p.lab_key);
-    return `<div class="team"><h3>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${title}${NEW_TAB}</a>` : title}${p.inria ? '<span class="badge">Inria</span>' : ''}</h3>
+    const sheet = esc(team_sheet(p));
+    // le nom de l'équipe mène à sa fiche dans le listing des équipes de recherche
+    return `<div class="team"><h3><a href="${sheet}" target="_blank" rel="noopener">${title}<span class="visually-hidden"> : fiche de l'équipe</span>${NEW_TAB}</a>${p.inria ? '<span class="badge">Inria</span>' : ''}</h3>
         ${team['Nom'] ? `<p class="team-name">${esc(team['Nom'])}</p>` : ''}${themes ? `<p class="desc">${esc(themes)}</p>` : ''}
-        <a class="team-sheet" href="${esc(team_sheet(p))}" target="_blank" rel="noopener">${ICON.list}Fiche dans le listing${NEW_TAB}</a></div>`;
+        <p class="team-links"><a class="team-sheet" href="${sheet}" target="_blank" rel="noopener">${ICON.list}Fiche de l'équipe${NEW_TAB}</a>${url ? `<a class="team-sheet" href="${esc(url)}" target="_blank" rel="noopener">${ICON.web}Site de l'équipe${NEW_TAB}</a>` : ''}</p></div>`;
 }
 
 function lab_html(sel) {
@@ -375,7 +407,8 @@ function lab_html(sel) {
         <h2>${esc(teams[0].lab_key)}</h2>
         <p class="where">${esc(lab['Nom'] || '')}${teams[0].city ? ' · ' + esc(teams[0].city) : ''}</p>
         <div class="actions">
-            ${lab['URL'] ? `<a class="action primary" href="${esc(lab['URL'])}" target="_blank" rel="noopener">${ICON.web}Laboratoire${NEW_TAB}</a>` : ''}
+            ${teams.length==1 ? `<a class="action primary" href="${esc(team_sheet(teams[0]))}" target="_blank" rel="noopener">${ICON.list}Fiche de l'équipe${NEW_TAB}</a>` : ''}
+            ${lab['URL'] ? `<a class="action${teams.length==1 ? '' : ' primary'}" href="${esc(lab['URL'])}" target="_blank" rel="noopener">${ICON.web}Laboratoire${NEW_TAB}</a>` : ''}
             <button type="button" class="action center-btn">${ICON.center}Centrer</button>
             <button type="button" class="action share-btn">${ICON.link}Copier le lien</button>
         </div>
