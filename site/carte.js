@@ -342,6 +342,7 @@ function company_html(p) {
         <div class="actions">
             ${e['url'] ? `<a class="action primary" href="${esc(e['url'])}" target="_blank" rel="noopener">${ICON.web}Site web${NEW_TAB}</a>` : ''}
             ${e['Jobs'] ? `<a class="action" href="${esc(e['Jobs'])}" target="_blank" rel="noopener">${ICON.jobs}Offres d'emploi${NEW_TAB}</a>` : ''}
+            <a class="action" href="${COMPANIES_LISTING}?e=${encodeURIComponent(e['Name'])}" target="_blank" rel="noopener">${ICON.list}Fiche dans le listing${NEW_TAB}</a>
             <button type="button" class="action center-btn">${ICON.center}Centrer</button>
             <button type="button" class="action share-btn">${ICON.link}Copier le lien</button>
         </div>
