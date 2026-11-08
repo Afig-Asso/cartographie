@@ -269,20 +269,27 @@ function set_panel(state) { // 'open' | 'closed' | 'expanded' (mobile)
     $('#panel-toggle').setAttribute('aria-label', state=='closed' ? 'Afficher le panneau' : 'Masquer le panneau');
 }
 
-function near(center, points, exclude) {
-    return points.filter((p) => !exclude(p)).map((p) => ({p, 'd': km(center, p)})).filter((x) => x.d<=RADIUS_KM)
-        .sort((a, b) => a.d - b.d || a.p.name.localeCompare(b.p.name, 'fr'));
+// Points à moins de 30 km ; une entreprise n'apparaît qu'une fois (son implantation la plus proche).
+// Tri par distance, ou par ordre alphabétique (alpha)
+function near(center, points, exclude, alpha) {
+    const best = new Map();
+    for(const p of points) {
+        if(exclude(p)) continue;
+        const d = km(center, p);
+        if(d>RADIUS_KM) continue;
+        const key = p.kind=='company' ? 'c' + p.k : p.id;
+        if(!best.has(key) || d<best.get(key).d) best.set(key, {p, d});
+    }
+    const by_name = (a, b) => a.p.name.localeCompare(b.p.name, 'fr', {'sensitivity': 'base'});
+    return [...best.values()].sort(alpha ? by_name : (a, b) => a.d - b.d || by_name(a, b));
 }
 
-function near_section(title, items, empty, limit) {
+function near_section(title, items, empty) {
     if(items.length==0) return `<section class="section"><h3 class="section-title">${title}</h3><p class="muted">${empty}</p></section>`;
     const row = ({p, d}) => `<li data-id="${esc(p.id)}"><span class="swatch swatch-${p.kind=='lab' ? 'lab' : 'company'}" aria-hidden="true"></span>
         <button type="button" class="goto" data-id="${esc(p.id)}">${esc(p.name)}</button><span class="dist">${km_text(d)}</span>
         ${p.kind=='lab' && p.team?.['Nom'] ? `<span class="sub">${esc(p.team['Nom'])}</span>` : (p.kind=='company' && p.entry['Description'] ? `<span class="sub">${esc(p.entry['Description'])}</span>` : '')}</li>`;
-    const shown = items.slice(0, limit), rest = items.slice(limit);
-    return `<section class="section"><h3 class="section-title">${title} <span class="n">${items.length}</span></h3><ul class="near">${shown.map(row).join('')}</ul>`
-        + (rest.length ? `<details class="more"><summary>Voir les ${rest.length} autres</summary><ul class="near">${rest.map(row).join('')}</ul></details>` : '')
-        + '</section>';
+    return `<section class="section"><h3 class="section-title">${title} <span class="n">${items.length}</span></h3><ul class="near">${items.map(row).join('')}</ul></section>`;
 }
 
 const back_button = `<button type="button" class="back">${ICON.back}Vue d'ensemble</button>`;
@@ -303,8 +310,8 @@ function company_html(p) {
         </div>
         ${e['Description'] ? `<p class="desc">${esc(e['Description'])}</p>` : ''}
         ${tags.length ? `<p class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</p>` : ''}
-        ${near_section(`Équipes de recherche à moins de ${RADIUS_KM} km`, near(p, STATE.labs, () => false), `Aucune équipe de recherche du listing à moins de ${RADIUS_KM} km.`, 10)}
-        ${near_section(`Autres entreprises à moins de ${RADIUS_KM} km`, near(p, STATE.companies, (q) => q.k==p.k), 'Aucune autre entreprise du listing à proximité.', 6)}
+        ${near_section(`Équipes de recherche à moins de ${RADIUS_KM} km`, near(p, STATE.labs, () => false), `Aucune équipe de recherche du listing à moins de ${RADIUS_KM} km.`)}
+        ${near_section(`Autres entreprises à moins de ${RADIUS_KM} km`, near(p, STATE.companies, (q) => q.k==p.k, true), 'Aucune autre entreprise du listing à proximité.')}
     </div>`;
 }
 
@@ -329,31 +336,38 @@ function lab_html(sel) {
             <button type="button" class="action share-btn">${ICON.link}Copier le lien</button>
         </div>
         ${teams.map(team_html).join('')}
-        ${near_section(`Entreprises à moins de ${RADIUS_KM} km`, near(site, STATE.companies, () => false), `Aucune entreprise du listing à moins de ${RADIUS_KM} km.`, 12)}
-        ${near_section(`Autres équipes de recherche à moins de ${RADIUS_KM} km`, near(site, STATE.labs, (q) => q.site==site), 'Aucune autre équipe du listing à proximité.', 6)}
+        ${near_section(`Entreprises à moins de ${RADIUS_KM} km`, near(site, STATE.companies, () => false, true), `Aucune entreprise du listing à moins de ${RADIUS_KM} km.`)}
+        ${near_section(`Autres équipes de recherche à moins de ${RADIUS_KM} km`, near(site, STATE.labs, (q) => q.site==site), 'Aucune autre équipe du listing à proximité.')}
     </div>`;
 }
 
-// Pôles : les équipes de recherche regroupées par zone (zones du listing des entreprises, sinon équipes
-// à moins de 30 km les unes des autres), avec les entreprises à moins de 30 km d'une de leurs équipes
-function hubs() {
-    const zone_of = (p) => STATE.zones[String(p.city || p.lab['Ville'] || '').split(',')[0].trim()];
-    const list = [];
-    for(const p of [...STATE.labs].sort((a, b) => !zone_of(a) - !zone_of(b))) {
-        const zone = zone_of(p);
-        let hub = list.find((h) => (zone && h.zone==zone) || (!zone && h.teams.some((q) => km(p, q)<=RADIUS_KM)));
-        if(!hub) { hub = {zone, 'name': zone || String(p.city || p.lab['Ville']).split(',')[0].trim(), 'teams': []}; list.push(hub); }
-        hub.teams.push(p);
-    }
-    return list.map((h) => ({...h,
-        'companies': new Set(STATE.companies.filter((c) => h.teams.some((t) => km(c, t)<=RADIUS_KM)).map((c) => c.k)).size,
-        'bounds': L.latLngBounds(h.teams.map((t) => [t.lat, t.lon])),
-    })).sort((a, b) => b.teams.length - a.teams.length || b.companies - a.companies);
+// Villes : les zones du listing des entreprises (ville et sa périphérie), et les villes des équipes de
+// recherche hors de ces zones ; chacune est cadrée sur l'ensemble de ses points
+function places() {
+    const groups = new Map();
+    const add = (name, p) => { if(!groups.has(name)) groups.set(name, []); groups.get(name).push([p.lat, p.lon]); };
+    for(const p of STATE.companies) add(STATE.zones[p.city] || p.city, p);
+    // une équipe dans une ville sans zone (Saclay, Montbonnot...) rejoint la zone de l'entreprise la plus proche (moins de 25 km)
+    const lab_place = (p) => {
+        const city = String(p.city).split(',')[0].trim();
+        if(STATE.zones[city]) return STATE.zones[city];
+        let best = null, dmin = 25;
+        for(const c of STATE.companies) {
+            const zone = STATE.zones[c.city], d = km(p, c);
+            if(zone && d<dmin) { dmin = d; best = zone; }
+        }
+        return best || city;
+    };
+    const lab_names = new Set();
+    for(const p of STATE.labs) { const name = lab_place(p); lab_names.add(name); add(name, p); }
+    return [...groups.entries()].filter(([name, pts]) => pts.length>=3 || lab_names.has(name))
+        .map(([name, pts]) => ({name, 'bounds': L.latLngBounds(pts)}))
+        .sort((x, y) => x.name.localeCompare(y.name, 'fr', {'sensitivity': 'base'}));
 }
 
 function overview_html() {
     const N_companies = new Set(STATE.companies.map((p) => p.k)).size;
-    STATE.hubs = hubs();
+    STATE.places = places();
     return `<div class="intro">
         <h2>L'informatique graphique en France</h2>
         <p>Les entreprises et les équipes de recherche du domaine. Cliquer une équipe de recherche pour voir les entreprises
@@ -362,11 +376,10 @@ function overview_html() {
             <div class="stat"><strong>${N_companies}</strong><span>entreprises en France</span></div>
             <div class="stat lab"><strong>${STATE.labs.length}</strong><span>équipes de recherche</span></div>
         </div></div>
-        <section class="section"><h3 class="section-title">Les pôles de recherche</h3>
-        <p class="muted">Nombre d'équipes de recherche <span class="swatch swatch-lab" aria-hidden="true"></span> et d'entreprises à moins de ${RADIUS_KM} km <span class="swatch swatch-company" aria-hidden="true"></span>.</p>
-        <ul class="hubs">${STATE.hubs.map((h, i) => `<li><button type="button" class="hub" data-i="${i}">${esc(h.name)}</button>
-            <span class="hub-n"><span class="swatch swatch-lab" aria-hidden="true"></span>${h.teams.length}</span>
-            <span class="hub-n"><span class="swatch swatch-company" aria-hidden="true"></span>${h.companies}</span></li>`).join('')}</ul></section>
+        <section class="section"><h3 class="section-title">Régions</h3>
+        <div class="place-chips">${REGIONS.map((r, i) => `<button type="button" class="place" data-region="${i}">${esc(r.label)}</button>`).join('')}</div></section>
+        <section class="section"><h3 class="section-title">Villes</h3>
+        <div class="place-chips">${STATE.places.map((c, i) => `<button type="button" class="place" data-city="${i}">${esc(c.name)}</button>`).join('')}</div></section>
         <p class="footer-note">Données : <a href="${COMPANIES_LISTING}" target="_blank" rel="noopener">listing des entreprises${NEW_TAB}</a>
             et <a href="${LABS_LISTING}" target="_blank" rel="noopener">listing des équipes de recherche${NEW_TAB}</a> de l'AFIG,
             à compléter ou corriger sur GitHub ou par courriel (contact[at]asso-afig.fr).${STATE.updated ? ` Entreprises mises à jour le ${esc(STATE.updated)}.` : ''}</p>`;
@@ -388,7 +401,7 @@ function select(sel, options = {}) {
         STATE.circle = L.circle([center.lat, center.lon], {'radius': RADIUS_KM*1000, 'color': sel.kind=='company' ? '#3e5307' : '#6e0d1c',
             'weight': 1.5, 'dashArray': '6 6', 'fillColor': sel.kind=='company' ? '#7fa81a' : '#a3162b', 'fillOpacity': 0.06, 'interactive': false}).addTo(STATE.map);
         if(PANEL.classList.contains('is-closed')) set_panel('open');
-        if(options.fly!==false) fly_to(STATE.circle.getBounds());
+        if(options.fly) fly_to(STATE.circle.getBounds());  // seulement depuis la recherche ou un lien direct
     }
     const params = new URLSearchParams();
     if(sel?.kind=='company') params.set('entreprise', sel.name);
@@ -407,19 +420,28 @@ function highlight(id, on) {
 
 BODY.addEventListener('click', (event) => {
     const go = event.target.closest('.goto');
-    if(go) { const p = find_point(go.dataset.id); if(p) select(p); return; }
-    if(event.target.closest('.back')) { select(null); fly_to(FRANCE); return; }
+    if(go) { // la vue ne bouge pas, sauf si le point est hors de l'écran : la carte glisse alors jusqu'à lui, sans changer de zoom
+        const p = find_point(go.dataset.id);
+        if(!p) return;
+        select(p);
+        if(!STATE.map.getBounds().contains([p.lat, p.lon])) STATE.map.panTo([p.lat, p.lon]);
+        return;
+    }
+    if(event.target.closest('.back')) { select(null); return; }
     if(event.target.closest('.center-btn') && STATE.circle) { fly_to(STATE.circle.getBounds()); return; }
     const share = event.target.closest('.share-btn');
     if(share) {
         navigator.clipboard?.writeText(location.href).then(() => { share.lastChild.textContent = 'Lien copié'; }, () => {});
         return;
     }
-    const hub = event.target.closest('.hub');
-    if(hub) {
-        const h = STATE.hubs[+hub.dataset.i];
-        const c = h.bounds.getCenter();
-        fly_to(h.bounds.extend(L.latLng(c.lat, c.lng).toBounds(2*RADIUS_KM*1000)));
+    const place = event.target.closest('.place');
+    if(place) {
+        if(place.dataset.region!=undefined) fly_to(REGIONS[+place.dataset.region].bounds);
+        else {
+            const c = STATE.places[+place.dataset.city];
+            const center = c.bounds.getCenter();
+            fly_to(c.bounds.extend(center.toBounds(16000)));  // au moins ~16 km autour : pas de zoom extrême sur une ville d'un seul point
+        }
         if(MOBILE.matches) set_panel('closed');
     }
 });
@@ -460,7 +482,7 @@ function choose(i) {
     if(!p) return;
     SUGGEST.hidden = true;
     SEARCH.setAttribute('aria-expanded', 'false');
-    select(p);
+    select(p, {'fly': true});
 }
 
 let timer = null;
@@ -519,7 +541,7 @@ document.addEventListener('click', (event) => { if(!event.target.closest('.chip-
 document.addEventListener('keydown', (event) => {
     if(event.key!='Escape') return;
     if(!REGIONS_MENU.hidden) { toggle_regions(false); REGIONS_BTN.focus(); }
-    else if(STATE.selected && document.activeElement!=SEARCH) select(null, {'fly': false});
+    else if(STATE.selected && document.activeElement!=SEARCH) select(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -531,18 +553,18 @@ function select_from_url() {
     const company = params.get('entreprise'), team = params.get('equipe');
     if(company) {
         const p = STATE.companies.find((q) => norm(q.name)==norm(company));
-        if(p) select(p);
+        if(p) select(p, {'fly': true});
     }
     else if(team) {
         const p = STATE.labs.find((q) => norm(q.id)==norm(team));
         const lab = STATE.labs.filter((q) => norm(q.lab_key)==norm(team));
-        if(p) select(p);
+        if(p) select(p, {'fly': true});
         else if(lab.length) { // un labo : son site principal (ses coordonnées), sinon le site qui a le plus d'équipes
             const home = lab[0].lab['Coordonnées'];
             const sites = [...new Set(lab.map((q) => q.site))];
             const site = sites.find((s) => home && s.lat==home[0] && s.lon==home[1])
                 || sites.sort((a, b) => lab.filter((q) => q.site==b).length - lab.filter((q) => q.site==a).length)[0];
-            select(site_selection(site, lab.filter((q) => q.site==site)));
+            select(site_selection(site, lab.filter((q) => q.site==site)), {'fly': true});
         }
     }
 }

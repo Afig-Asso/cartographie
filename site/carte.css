@@ -144,6 +144,10 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .stat.lab { background: var(--lab-50); }
 .stat strong { display: block; font-family: var(--font-title); font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 0.8rem; color: var(--text-2); }
+.place-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.place { border: 1px solid #d5d8d1; background: var(--surface); border-radius: 16px; padding: 3px 11px; font-size: 0.84rem; font-weight: 600; color: var(--text-2); }
+.place:hover { background: var(--afig-50); border-color: var(--afig-600); color: var(--text); }
+.place:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .hubs li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 7px 8px; border-radius: 8px; }
 .hubs li:hover { background: var(--hover); }
 .hub-n { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; font-size: 0.84rem; color: var(--text-2); min-width: 44px; justify-content: flex-end; }
