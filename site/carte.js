@@ -445,7 +445,8 @@ function select(sel, options = {}) {
         STATE.circle = L.circle([center.lat, center.lon], {'radius': RADIUS_KM*1000, 'color': sel.kind=='company' ? '#3e5307' : '#6e0d1c',
             'weight': 1.5, 'dashArray': '6 6', 'fillColor': sel.kind=='company' ? '#7fa81a' : '#a3162b', 'fillOpacity': 0.06, 'interactive': false}).addTo(STATE.map);
         if(PANEL.classList.contains('is-closed')) set_panel('open');
-        if(options.fly) fly_to(STATE.circle.getBounds());  // seulement depuis la recherche ou un lien direct
+        // seulement depuis la recherche ou un lien direct : zoom de rue (~3 km de large) pour voir le point lui-même
+        if(options.fly) fly_to(L.latLng(center.lat, center.lon).toBounds(3000));
     }
     const params = new URLSearchParams();
     if(sel?.kind=='company') params.set('entreprise', sel.name);
