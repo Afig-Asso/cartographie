@@ -15,6 +15,7 @@ const SOURCES = {
 const COMPANIES_LISTING = 'https://afig-asso.github.io/entreprises/';
 const LABS_LISTING = 'https://github.com/Afig-Asso/research-team';
 const RADIUS_KM = 30;
+const DOTS_ZOOM = 10;  // à partir de ce zoom : chaque point séparément, plus de regroupements
 const FRANCE = [[42.2, -4.8], [51.1, 8.3]];
 const REGIONS = [
     {'label': 'France entière', 'bounds': FRANCE},
@@ -178,20 +179,39 @@ function create_map() {
         map.on('mouseout blur', () => map.scrollWheelZoom.disable());
     }
     STATE.groups.companies = L.markerClusterGroup({
-        'showCoverageOnHover': false, 'maxClusterRadius': 48, 'spiderfyOnMaxZoom': true,
+        'showCoverageOnHover': false, 'maxClusterRadius': 48, 'spiderfyOnMaxZoom': true, 'disableClusteringAtZoom': DOTS_ZOOM,
         'iconCreateFunction': (c) => {
             const N = c.getChildCount(), size = Math.round(26 + 5*Math.log2(N));
             return L.divIcon({'className': 'pin cluster-company', 'html': `<span>${N}</span>`, 'iconSize': [size, size]});
         },
     }).addTo(map);
     STATE.groups.labs = L.markerClusterGroup({
-        'showCoverageOnHover': false, 'maxClusterRadius': 26, 'spiderfyOnMaxZoom': true,
+        'showCoverageOnHover': false, 'maxClusterRadius': 26, 'spiderfyOnMaxZoom': true, 'disableClusteringAtZoom': DOTS_ZOOM,
         'iconCreateFunction': (c) => {
             const N = c.getAllChildMarkers().reduce((s, m) => s + m.options.teams, 0);
             return L.divIcon({'className': 'pin diamond', 'html': `<span>${N}</span>`, 'iconSize': [30, 30]});
         },
     }).addTo(map);
+    map.on('zoomend', spread);
     STATE.map = map;
+}
+
+// Entreprises au même endroit (souvent le centre de leur ville) : une fois les regroupements défaits,
+// leurs points sont écartés en tournesol autour de cet endroit pour rester tous visibles et cliquables
+function spread() {
+    const map = STATE.map, zoom = map.getZoom(), stacks = STATE.stacks || [];
+    if(stacks.length==0) return;
+    const moved = stacks.flatMap((s) => s.markers);
+    STATE.groups.companies.removeLayers(moved);
+    for(const stack of stacks) {
+        const center = map.project([stack.lat, stack.lon], zoom);
+        stack.markers.forEach((m, i) => {
+            if(zoom<DOTS_ZOOM) { m.setLatLng([stack.lat, stack.lon]); return; }
+            const r = 12*Math.sqrt(i + 0.5), angle = i*2.39996;
+            m.setLatLng(map.unproject(center.add([r*Math.cos(angle), r*Math.sin(angle)]), zoom));
+        });
+    }
+    STATE.groups.companies.addLayers(moved);
 }
 
 const matches = (p) => STATE.query=='' || STATE.query.split(/\s+/).every((w) => p.text.includes(w));
@@ -211,6 +231,15 @@ function draw_markers() {
             return m;
         }));
     }
+    const stacks = new Map();
+    if(STATE.show.companies) {
+        companies.forEach((p) => {
+            const key = `${p.lat},${p.lon}`;
+            if(!stacks.has(key)) stacks.set(key, {'lat': p.lat, 'lon': p.lon, 'markers': []});
+            stacks.get(key).markers.push(STATE.markers.get(p.id));
+        });
+    }
+    STATE.stacks = [...stacks.values()].filter((s) => s.markers.length>1);
     if(STATE.show.labs) {
         const by_site = new Map();
         teams.forEach((p) => { if(!by_site.has(p.site)) by_site.set(p.site, []); by_site.get(p.site).push(p); });
@@ -224,6 +253,7 @@ function draw_markers() {
             return m;
         }));
     }
+    spread();
     $('#count-companies').textContent = new Set(companies.map((p) => p.k)).size;
     $('#count-labs').textContent = teams.length;
 }
