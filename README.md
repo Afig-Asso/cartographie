@@ -20,6 +20,11 @@ Pour corriger une information, modifier le `data.yaml` du listing concerné (ou 
 - `?entreprise=Ubisoft` : la carte centrée sur une entreprise
 - `?equipe=LJK/MAVERICK` : sur une équipe (`?equipe=LJK` : sur un laboratoire)
 
+## Voir aussi
+
+- Équipes de recherche en informatique graphique : https://afig-asso.github.io/research-team/ (dépôt [Afig-Asso/research-team](https://github.com/Afig-Asso/research-team))
+- Entreprises en informatique graphique : https://afig-asso.github.io/entreprises/ (dépôt [Afig-Asso/entreprises](https://github.com/Afig-Asso/entreprises))
+
 ## Développement
 
 Le contenu de `site/` est déployé sur https://afig-asso.github.io/cartographie/ à chaque push sur `main`

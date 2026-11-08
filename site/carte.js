@@ -426,7 +426,9 @@ function overview_html() {
         <div class="place-chips">${STATE.places.map((c, i) => `<button type="button" class="place" data-city="${i}">${esc(c.name)}</button>`).join('')}</div></section>
         <p class="footer-note">Données : <a href="${COMPANIES_LISTING}" target="_blank" rel="noopener">listing des entreprises${NEW_TAB}</a>
             et <a href="${LABS_LISTING}" target="_blank" rel="noopener">listing des équipes de recherche${NEW_TAB}</a> de l'AFIG,
-            à compléter ou corriger sur GitHub ou par courriel (contact[at]asso-afig.fr).${STATE.updated ? ` Entreprises mises à jour le ${esc(STATE.updated)}.` : ''}</p>`;
+            à compléter ou corriger sur GitHub ou par courriel (contact[at]asso-afig.fr).
+            Voir aussi : <a href="https://afig-asso.github.io/research-team/">équipes de recherche</a> · <a href="https://afig-asso.github.io/entreprises/">entreprises</a> ·
+            dépôts GitHub <a href="https://github.com/Afig-Asso/research-team">research-team</a>, <a href="https://github.com/Afig-Asso/entreprises">entreprises</a>, <a href="https://github.com/Afig-Asso/cartographie">cartographie</a>.${STATE.updated ? ` Entreprises mises à jour le ${esc(STATE.updated)}.` : ''}</p>`;
 }
 
 function render_panel() {

@@ -23,6 +23,7 @@
     --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.16), 0 8px 24px rgba(0, 0, 0, 0.12);
     --panel-w: 400px;
     --gap: 12px;
+    --bar: 34px;   /* barre commune aux pages AFIG */
     --font: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-title: "Raleway", var(--font);
     --ease: 220ms cubic-bezier(0.2, 0, 0, 1);
@@ -33,6 +34,7 @@ html, body { height: 100%; margin: 0; }
 body { font-family: var(--font); font-size: 15px; line-height: 1.45; color: var(--text); background: #e8ece6;
     overflow: hidden; -webkit-font-smoothing: antialiased; accent-color: var(--afig-700); }
 .embedded, .embedded body { height: 760px; }  /* dans le site de l'AFIG : hauteur fixe de l'iframe */
+.embedded { --bar: 0px; }
 h2, h3 { margin: 0; line-height: 1.25; }
 p { margin: 0; }
 a { color: var(--afig-800); }
@@ -42,11 +44,20 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 [hidden] { display: none !important; }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.map { position: fixed; inset: 0; z-index: 0; background: #e8ece6; }
+.map { position: fixed; inset: var(--bar) 0 0 0; z-index: 0; background: #e8ece6; }
 .embedded .map { position: absolute; }
 
+/* barre commune aux pages AFIG (équipes, entreprises, carte), comme sur research-team */
+.sites { position: fixed; top: 0; left: 0; right: 0; height: var(--bar); z-index: 1100; overflow-x: auto; scrollbar-width: none; white-space: nowrap; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 16px; padding: 7px 16px; background: #18181b; font-family: var(--font); font-size: 13px; line-height: 20px; }
+.sites a { color: #a1a1aa; text-decoration: none; }
+.sites a:hover, .sites a:focus-visible { color: #ffffff; text-decoration: underline; }
+.sites a[aria-current] { color: #ffffff; font-weight: 600; }
+.sites .afig { font-weight: 800; color: #a2d026; }
+.sites .gh { margin-left: auto; }
+.embedded .sites { position: fixed; top: 0; left: 0; right: 0; height: var(--bar); z-index: 1100; overflow: hidden; display: none; }  /* dans le site de l'AFIG, qui a sa propre navigation */
+
 /* ---- Barre du haut ---- */
-.top { position: absolute; top: var(--gap); left: var(--gap); right: var(--gap); z-index: 1000; display: flex; align-items: flex-start;
+.top { position: absolute; top: calc(var(--bar) + var(--gap)); left: var(--gap); right: var(--gap); z-index: 1000; display: flex; align-items: flex-start;
     gap: 10px; pointer-events: none; }
 .top > * { pointer-events: auto; }
 .searchbox { position: relative; width: calc(var(--panel-w) - 2 * var(--gap) + var(--gap)); flex: none; display: flex; align-items: center;
@@ -84,7 +95,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
 
 /* ---- Panneau ---- */
-.panel { position: absolute; z-index: 900; top: calc(var(--gap) + 48px + 10px); left: var(--gap); bottom: var(--gap); width: calc(var(--panel-w) - var(--gap));
+.panel { position: absolute; z-index: 900; top: calc(var(--bar) + var(--gap) + 48px + 10px); left: var(--gap); bottom: var(--gap); width: calc(var(--panel-w) - var(--gap));
     background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-2); display: flex; flex-direction: column;
     transition: transform var(--ease), opacity var(--ease); }
 .panel.is-closed { transform: translateX(calc(-100% - var(--gap) - 2px)); }
@@ -199,7 +210,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
     .chips { margin: 0 calc(-1 * var(--gap)); padding: 2px var(--gap) 6px; }
     .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 46vh; border-radius: 18px 18px 0 0;
         transition: height var(--ease), transform var(--ease); }
-    .panel.is-expanded { height: calc(100% - 120px); }
+    .panel.is-expanded { height: calc(100% - 120px - var(--bar)); }
     .panel.is-closed { transform: translateY(calc(100% - 64px)); }
     .panel-toggle { display: none; }
     .sheet-handle { display: grid; place-items: center; flex: none; height: 26px; border: 0; background: none; padding: 0; }
