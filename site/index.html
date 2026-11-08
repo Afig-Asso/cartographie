@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="Carte des entreprises et des équipes de recherche en informatique graphique en France, maintenue par l'AFIG.">
     <title>Carte de l'informatique graphique en France - AFIG</title>
     <link rel="icon" href="favicon.ico">
@@ -24,46 +24,48 @@
 </head>
 
 <body>
-    <header class="band">
-        <h1>Carte de l'informatique graphique en France</h1>
-        <p class="band-intro">Les entreprises et les équipes de recherche du domaine, pour voir qui travaille près de qui.
-            Cliquer un point montre ce qui se trouve à moins de 30 km.</p>
-        <div class="toolbar">
-            <label class="layer layer-companies"><input type="checkbox" id="show-companies" checked>
-                <span class="swatch swatch-company" aria-hidden="true"></span> Entreprises <span class="count" id="count-companies"></span></label>
-            <label class="layer layer-labs"><input type="checkbox" id="show-labs" checked>
-                <span class="swatch swatch-lab" aria-hidden="true"></span> Équipes de recherche <span class="count" id="count-labs"></span></label>
-            <div class="search">
-                <label for="search" class="visually-hidden">Rechercher</label>
-                <input type="search" id="search" placeholder="Rechercher : nom, ville, thème…" autocomplete="off">
+    <h1 class="visually-hidden">Carte de l'informatique graphique en France</h1>
+    <div id="map" class="map" role="region" aria-label="Carte des entreprises et des équipes de recherche"></div>
+
+    <!-- Barre du haut : recherche, couches, régions -->
+    <div class="top">
+        <div class="searchbox" role="search">
+            <a class="brand" href="https://www.asso-afig.fr/" target="_blank" rel="noopener" title="AFIG - Association Française d'Informatique Graphique">AFIG</a>
+            <label for="search" class="visually-hidden">Rechercher une entreprise, une équipe, une ville ou un thème</label>
+            <input type="search" id="search" placeholder="Entreprise, équipe, ville, thème…" autocomplete="off"
+                role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
+            <button type="button" class="icon-btn clear-search" id="clear-search" aria-label="Effacer la recherche" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            <span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></span>
+            <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
+        </div>
+        <div class="chips" role="group" aria-label="Couches et régions">
+            <button type="button" class="chip layer-chip" id="chip-companies" aria-pressed="true">
+                <span class="swatch swatch-company" aria-hidden="true"></span>Entreprises <span class="chip-count" id="count-companies"></span></button>
+            <button type="button" class="chip layer-chip" id="chip-labs" aria-pressed="true">
+                <span class="swatch swatch-lab" aria-hidden="true"></span>Recherche <span class="chip-count" id="count-labs"></span></button>
+            <div class="chip-menu">
+                <button type="button" class="chip" id="regions-btn" aria-haspopup="true" aria-expanded="false" aria-controls="regions">Régions
+                    <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
+                <div id="regions" class="menu" hidden></div>
             </div>
         </div>
-    </header>
+    </div>
 
-    <nav class="frames" id="frames" aria-label="Cadrer la carte"></nav>
+    <!-- Panneau latéral (bas d'écran sur mobile) -->
+    <aside id="panel" class="panel" aria-label="Détails">
+        <button type="button" class="sheet-handle" id="sheet-handle" aria-label="Agrandir ou réduire le panneau"><span></span></button>
+        <button type="button" class="panel-toggle" id="panel-toggle" aria-label="Masquer le panneau" aria-expanded="true" aria-controls="panel-body">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 7-5 5 5 5"/></svg></button>
+        <div id="panel-body" class="panel-body"></div>
+    </aside>
 
-    <main class="layout">
-        <div class="map-wrap">
-            <div id="map" class="map" role="region" aria-label="Carte des entreprises et des équipes de recherche"></div>
-            <p class="map-help" id="map-help">Cliquer la carte pour zoomer à la molette.</p>
-        </div>
-        <aside id="panel" class="panel" aria-live="polite">
-            <div class="panel-empty">
-                <h2>Qui est près de qui ?</h2>
-                <p>Cliquer une équipe de recherche <span class="swatch swatch-lab" aria-hidden="true"></span>
-                    pour voir les entreprises à moins de 30 km, ou une entreprise <span class="swatch swatch-company" aria-hidden="true"></span>
-                    pour voir les équipes de recherche proches.</p>
-                <div id="hubs"></div>
-            </div>
-        </aside>
-    </main>
-
-    <footer class="footer">
-        <p>Données : <a href="https://github.com/Afig-Asso/entreprises" target="_blank" rel="noopener">listing des entreprises</a>
-            et <a href="https://github.com/Afig-Asso/research-team" target="_blank" rel="noopener">listing des équipes de recherche</a>
-            de l'AFIG (à compléter ou corriger sur GitHub, ou par courriel à contact[at]asso-afig.fr).
-            Fond de carte © contributeurs OpenStreetMap.</p>
-        <p id="updated"></p>
-    </footer>
+    <!-- Légende -->
+    <div class="legend" aria-label="Légende">
+        <span><span class="swatch swatch-company" aria-hidden="true"></span>Entreprise <span class="legend-note">(taille : effectif)</span></span>
+        <span><span class="swatch swatch-lab" aria-hidden="true"></span>Équipe de recherche</span>
+        <span><span class="swatch swatch-radius" aria-hidden="true"></span>30 km autour de la sélection</span>
+    </div>
+    <p class="wheel-hint" id="wheel-hint" hidden>Cliquer la carte pour zoomer à la molette</p>
 </body>
 </html>

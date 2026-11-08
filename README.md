@@ -33,4 +33,4 @@ python3 -m http.server 8770
 
 puis ouvrir http://localhost:8770/cartographie/site/index.html (les données sont alors lues dans les dépôts voisins).
 
-Leaflet 1.9.4 et Leaflet.markercluster sont copiés dans `site/leaflet/` ; fond de carte © contributeurs OpenStreetMap.
+Leaflet 1.9.4 et Leaflet.markercluster sont copiés dans `site/leaflet/` ; fond de carte Esri World Light Gray (© Esri, contributeurs OpenStreetMap).

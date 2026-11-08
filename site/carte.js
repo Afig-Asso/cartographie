@@ -4,6 +4,7 @@
 // Carte de l'informatique graphique en France : entreprises (listing AFIG des entreprises) et
 // équipes de recherche (listing AFIG des équipes), avec ce qui se trouve à moins de 30 km.
 // Les deux listings sont lus directement dans leurs dépôts : la carte suit leurs mises à jour.
+// Mise en page plein écran : carte, recherche et couches en haut, panneau à gauche (en bas sur mobile).
 // ---------------------------------------------------------------------------
 
 const IS_LOCAL = ['localhost', '127.0.0.1', ''].includes(location.hostname);
@@ -14,27 +15,37 @@ const SOURCES = {
 const COMPANIES_LISTING = 'https://afig-asso.github.io/entreprises/';
 const LABS_LISTING = 'https://github.com/Afig-Asso/research-team';
 const RADIUS_KM = 30;
-const FRAMES = [
-    {'label': 'France', 'bounds': [[42.2, -4.8], [51.1, 8.3]]},
-    {'label': 'Île-de-France', 'bounds': [[48.55, 1.85], [49.05, 2.75]]},
-    {'label': 'Lyon – Grenoble', 'bounds': [[44.95, 4.55], [46.0, 6.2]]},
+const FRANCE = [[42.2, -4.8], [51.1, 8.3]];
+const REGIONS = [
+    {'label': 'France entière', 'bounds': FRANCE},
+    {'label': 'Paris – Île-de-France', 'bounds': [[48.6, 1.95], [49.0, 2.7]]},
+    {'label': 'Lyon – Grenoble', 'bounds': [[44.95, 4.6], [45.95, 6.1]]},
     {'label': 'Bretagne – Pays de la Loire', 'bounds': [[46.9, -4.9], [48.9, -0.4]]},
-    {'label': 'Sud-Ouest', 'bounds': [[43.2, -1.5], [45.2, 2.2]]},
-    {'label': 'Sud-Est', 'bounds': [[43.0, 3.5], [44.1, 7.6]]},
-    {'label': 'Nord-Est', 'bounds': [[47.0, 2.8], [51.2, 8.2]]},
+    {'label': 'Bordeaux – Toulouse', 'bounds': [[43.3, -1.4], [45.2, 2.0]]},
+    {'label': 'Montpellier – Marseille – Nice', 'bounds': [[43.0, 3.5], [44.0, 7.5]]},
+    {'label': 'Nord et Est', 'bounds': [[47.0, 2.8], [51.2, 8.2]]},
 ];
+const MOBILE = window.matchMedia('(max-width: 760px)');
 
 const STATE = {
-    'map': null, 'companies': [], 'labs': [], 'sites': [],  // points
-    'groups': {}, 'circle': null, 'selected': null, 'query': '', 'zones': {},
+    'map': null, 'companies': [], 'labs': [], 'zones': {}, 'groups': {}, 'markers': new Map(),
+    'circle': null, 'selected': null, 'query': '', 'show': {'companies': true, 'labs': true}, 'updated': '',
 };
-const PANEL = document.querySelector('#panel');
-const EMPTY_PANEL = PANEL.innerHTML;
+const $ = (s) => document.querySelector(s);
+const PANEL = $('#panel'), BODY = $('#panel-body');
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const as_list = (v) => v==null ? [] : (Array.isArray(v) ? v : String(v).split(',')).map((x) => String(x).trim()).filter((x) => x!='');
 const NEW_TAB = '<span class="visually-hidden"> (nouvel onglet)</span>';
+const ICON = {
+    'back': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 7-5 5 5 5"/></svg>',
+    'web': '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>',
+    'jobs': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 13h18"/></svg>',
+    'list': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>',
+    'link': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+    'center': '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
+};
 
 function km(a, b) {
     const R = 6371, rad = Math.PI/180;
@@ -58,7 +69,6 @@ function employees_count(entry) {
 function size_text(N) {
     if(N==null) return '';
     if(N<10) return `${N} pers.`;
-    if(N<250) return `~${N} pers.`;
     return `~${N.toLocaleString('fr-FR')} pers.`;
 }
 
@@ -70,8 +80,7 @@ function french_places(place) {
     const countries = as_list(place['Country']);
     if(countries.length>0 && !countries.includes('France')) return [];
     const cities = as_list(place['City']);
-    const single = cities.length==1;
-    return cities.map((c) => ({'city': c, 'coords': single ? (place['Coordinates'] || null) : null}));
+    return cities.map((c) => ({'city': c, 'coords': cities.length==1 ? (place['Coordinates'] || null) : null}));
 }
 
 function build_companies(data) {
@@ -81,10 +90,8 @@ function build_companies(data) {
         const seen = new Set();
         french_places(entry['Place']).forEach((p, j) => {
             const coords = p.coords || places['France/' + p.city];
-            if(!coords) return;
-            const key = coords.join(',');
-            if(seen.has(key)) return;
-            seen.add(key);
+            if(!coords || seen.has(coords.join(','))) return;
+            seen.add(coords.join(','));
             out.push({
                 'kind': 'company', 'id': `c${k}-${j}`, 'k': k, 'entry': entry, 'name': entry['Name'], 'city': p.city,
                 'lat': coords[0], 'lon': coords[1], 'employees': employees_count(entry),
@@ -100,7 +107,6 @@ function build_companies(data) {
 function build_labs(data) {
     const out = [];
     for(const [lab_key, lab] of Object.entries(data)) {
-        const teams = Object.entries(lab['Equipes'] || {});
         const add = (team_key, team) => {
             const coords = (team && team['Coordonnées']) || lab['Coordonnées'];
             if(!coords) return;
@@ -108,27 +114,26 @@ function build_labs(data) {
             out.push({
                 'kind': 'lab', 'id': team_key ? `${lab_key}/${team_key}` : lab_key, 'lab_key': lab_key, 'lab': lab,
                 'team_key': team_key, 'team': team, 'name': team_key ? `${lab_key} – ${team_key}` : lab_key,
-                'city': ville, 'lat': coords[0], 'lon': coords[1], 'inria': team && 'Inria' in team,
+                'city': ville, 'lat': coords[0], 'lon': coords[1], 'inria': !!team && 'Inria' in team,
                 'text': norm([lab_key, lab['Nom'], ville, team_key, team?.['Nom'], team?.['Thèmes'] ?? lab['Thèmes']].join(' ')),
             });
         };
+        const teams = Object.entries(lab['Equipes'] || {});
         if(teams.length==0) add(null, null);
         teams.forEach(([t, team]) => add(t, team));
+    }
+    // équipes au même endroit (même bâtiment) : un seul repère
+    const sites = new Map();
+    for(const p of out) {
+        const key = `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
+        if(!sites.has(key)) sites.set(key, {'id': 's' + sites.size, 'lat': p.lat, 'lon': p.lon, 'teams': []});
+        sites.get(key).teams.push(p);
+        p.site = sites.get(key);
     }
     return out;
 }
 
-// Équipes au même endroit (même bâtiment) : un seul repère
-function build_sites(labs) {
-    const sites = new Map();
-    for(const p of labs) {
-        const key = `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
-        if(!sites.has(key)) sites.set(key, {'kind': 'site', 'id': 's' + sites.size, 'lat': p.lat, 'lon': p.lon, 'teams': []});
-        sites.get(key).teams.push(p);
-        p.site = sites.get(key);
-    }
-    return [...sites.values()];
-}
+const site_selection = (site, teams) => teams.length==1 ? teams[0] : {'kind': 'lab', 'site': site, 'multi': teams, 'name': teams[0].lab_key};
 
 // ---------------------------------------------------------------------------
 // Carte
@@ -136,239 +141,387 @@ function build_sites(labs) {
 
 function dot_icon(p, selected) {
     const size = p.employees==null ? 12 : Math.round(Math.min(30, 10 + 4*Math.log10(p.employees)));
-    return L.divIcon({'className': 'pin dot' + (p.employees==null ? ' dot-unknown' : '') + (selected ? ' is-selected' : ''),
-        'html': '', 'iconSize': [size, size]});
+    return L.divIcon({'className': 'pin dot' + (p.employees==null ? ' dot-unknown' : '') + (selected ? ' is-selected' : ''), 'html': '', 'iconSize': [size, size]});
 }
 
-function lab_icon(site, N, selected) {
-    const size = N>1 ? 26 : 18;
-    return L.divIcon({'className': 'pin diamond' + (selected ? ' is-selected' : ''),
-        'html': N>1 ? `<span>${N}</span>` : '', 'iconSize': [size, size]});
+function lab_icon(N, selected) {
+    const size = N>1 ? 28 : 20;
+    return L.divIcon({'className': 'pin diamond' + (selected ? ' is-selected' : ''), 'html': N>1 ? `<span>${N}</span>` : '', 'iconSize': [size, size]});
+}
+
+// marge pour ne pas cacher la sélection sous le panneau et la barre du haut
+function view_padding() {
+    if(MOBILE.matches) return {'paddingTopLeft': [20, 120], 'paddingBottomRight': [20, PANEL.classList.contains('is-closed') ? 80 : PANEL.offsetHeight + 20]};
+    const left = PANEL.classList.contains('is-closed') ? 30 : PANEL.offsetWidth + 40;
+    return {'paddingTopLeft': [left, 80], 'paddingBottomRight': [70, 60]};
+}
+
+function fly_to(bounds) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    STATE.map.flyToBounds(bounds, {...view_padding(), 'duration': reduce ? 0 : 0.7, 'animate': !reduce});
 }
 
 function create_map() {
-    const map = L.map('map', {'scrollWheelZoom': false, 'minZoom': 4, 'zoomSnap': 0.5});
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        'attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">contributeurs OpenStreetMap</a>', 'maxZoom': 18,
+    const embedded = document.documentElement.classList.contains('embedded');
+    const map = L.map('map', {'zoomControl': false, 'scrollWheelZoom': !embedded, 'minZoom': 4, 'zoomSnap': 0.5, 'worldCopyJump': true});
+    // fond gris clair et discret (les repères de couleur ressortent), noms des lieux par-dessus
+    const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+    L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        'maxZoom': 16, 'attribution': 'Fond de carte &copy; Esri, HERE, Garmin, &copy; contributeurs OpenStreetMap',
     }).addTo(map);
-    // la molette ne zoome qu'après un clic sur la carte (la page défile dans le site de l'AFIG)
-    map.on('click focus', () => { map.scrollWheelZoom.enable(); document.querySelector('#map-help').classList.add('is-hidden'); });
-    map.on('mouseout blur', () => map.scrollWheelZoom.disable());
-    map.fitBounds(FRAMES[0].bounds);
-
+    L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {'maxZoom': 16, 'pane': 'shadowPane'}).addTo(map);
+    map.setMaxZoom(16);
+    L.control.zoom({'position': 'bottomright', 'zoomInTitle': 'Zoomer', 'zoomOutTitle': 'Dézoomer'}).addTo(map);
+    if(embedded) { // dans le site de l'AFIG, la molette fait défiler la page tant qu'on n'a pas cliqué la carte
+        $('#wheel-hint').hidden = false;
+        map.on('click focus', () => { map.scrollWheelZoom.enable(); $('#wheel-hint').hidden = true; });
+        map.on('mouseout blur', () => map.scrollWheelZoom.disable());
+    }
     STATE.groups.companies = L.markerClusterGroup({
-        'showCoverageOnHover': false, 'maxClusterRadius': 45, 'spiderfyOnMaxZoom': true,
+        'showCoverageOnHover': false, 'maxClusterRadius': 48, 'spiderfyOnMaxZoom': true,
         'iconCreateFunction': (c) => {
-            const N = c.getChildCount(), size = Math.round(28 + 5*Math.log2(N));
+            const N = c.getChildCount(), size = Math.round(26 + 5*Math.log2(N));
             return L.divIcon({'className': 'pin cluster-company', 'html': `<span>${N}</span>`, 'iconSize': [size, size]});
         },
-    });
+    }).addTo(map);
     STATE.groups.labs = L.markerClusterGroup({
-        'showCoverageOnHover': false, 'maxClusterRadius': 28, 'spiderfyOnMaxZoom': true,
+        'showCoverageOnHover': false, 'maxClusterRadius': 26, 'spiderfyOnMaxZoom': true,
         'iconCreateFunction': (c) => {
             const N = c.getAllChildMarkers().reduce((s, m) => s + m.options.teams, 0);
-            return L.divIcon({'className': 'pin diamond cluster-lab', 'html': `<span>${N}</span>`, 'iconSize': [30, 30]});
+            return L.divIcon({'className': 'pin diamond', 'html': `<span>${N}</span>`, 'iconSize': [30, 30]});
         },
-    });
-    STATE.groups.companies.addTo(map);
-    STATE.groups.labs.addTo(map);  // au-dessus des entreprises
+    }).addTo(map);
     STATE.map = map;
 }
 
-function matches(p) {
-    return STATE.query=='' || STATE.query.split(/\s+/).every((w) => p.text.includes(w));
-}
+const matches = (p) => STATE.query=='' || STATE.query.split(/\s+/).every((w) => p.text.includes(w));
 
 function draw_markers() {
-    const show_c = document.querySelector('#show-companies').checked, show_l = document.querySelector('#show-labs').checked;
     STATE.groups.companies.clearLayers();
     STATE.groups.labs.clearLayers();
-    const companies = STATE.companies.filter(matches);
-    const teams = STATE.labs.filter(matches);
+    STATE.markers.clear();
+    const companies = STATE.companies.filter(matches), teams = STATE.labs.filter(matches);
     const sel = STATE.selected;
-    if(show_c) {
+    if(STATE.show.companies) {
         STATE.groups.companies.addLayers(companies.map((p) => {
-            const m = L.marker([p.lat, p.lon], {'icon': dot_icon(p, sel && sel.kind=='company' && sel.k==p.k), 'title': p.name, 'alt': p.name, 'keyboard': true});
-            m.bindTooltip(`${esc(p.name)}<br><span class="tip-city">${esc(p.city)}</span>`, {'direction': 'top', 'offset': [0, -6]});
+            const m = L.marker([p.lat, p.lon], {'icon': dot_icon(p, sel?.kind=='company' && sel.k==p.k), 'title': p.name, 'alt': p.name, 'riseOnHover': true});
+            m.bindTooltip(`${esc(p.name)}<span class="tip-sub">${esc(p.city)}${p.employees ? ' · ' + size_text(p.employees) : ''}</span>`, {'direction': 'top', 'offset': [0, -8]});
             m.on('click', () => select(p));
+            STATE.markers.set(p.id, m);
             return m;
         }));
     }
-    if(show_l) {
+    if(STATE.show.labs) {
         const by_site = new Map();
         teams.forEach((p) => { if(!by_site.has(p.site)) by_site.set(p.site, []); by_site.get(p.site).push(p); });
         STATE.groups.labs.addLayers([...by_site.entries()].map(([site, list]) => {
             const names = list.map((p) => p.name).join(', ');
-            const selected = sel && sel.kind=='lab' && sel.site==site;
-            const m = L.marker([site.lat, site.lon], {'icon': lab_icon(site, list.length, selected), 'title': names, 'alt': names, 'teams': list.length, 'keyboard': true, 'zIndexOffset': 1000});
-            m.bindTooltip(list.map((p) => esc(p.name)).join('<br>') + `<br><span class="tip-city">${esc(list[0].city)}</span>`, {'direction': 'top', 'offset': [0, -8]});
-            m.on('click', () => select(list.length==1 ? list[0] : {'kind': 'lab', 'site': site, 'multi': list}));
+            const selected = sel?.kind=='lab' && (sel.site==site || sel.multi?.[0].site==site);
+            const m = L.marker([site.lat, site.lon], {'icon': lab_icon(list.length, selected), 'title': names, 'alt': names, 'teams': list.length, 'zIndexOffset': 1000, 'riseOnHover': true});
+            m.bindTooltip(list.map((p) => esc(p.name)).join('<br>') + `<span class="tip-sub">${esc(list[0].city)}</span>`, {'direction': 'top', 'offset': [0, -10]});
+            m.on('click', () => select(site_selection(site, list)));
+            list.forEach((p) => STATE.markers.set(p.id, m));
             return m;
         }));
     }
-    document.querySelector('#count-companies').textContent = new Set(companies.map((p) => p.k)).size;  // entreprises, pas implantations
-    document.querySelector('#count-labs').textContent = teams.length;
+    $('#count-companies').textContent = new Set(companies.map((p) => p.k)).size;
+    $('#count-labs').textContent = teams.length;
 }
 
 // ---------------------------------------------------------------------------
-// Panneau : la sélection et ce qui est à moins de 30 km
+// Panneau
 // ---------------------------------------------------------------------------
+
+function set_panel(state) { // 'open' | 'closed' | 'expanded' (mobile)
+    PANEL.classList.toggle('is-closed', state=='closed');
+    PANEL.classList.toggle('is-expanded', state=='expanded');
+    $('#panel-toggle').setAttribute('aria-expanded', String(state!='closed'));
+    $('#panel-toggle').setAttribute('aria-label', state=='closed' ? 'Afficher le panneau' : 'Masquer le panneau');
+}
 
 function near(center, points, exclude) {
     return points.filter((p) => !exclude(p)).map((p) => ({p, 'd': km(center, p)})).filter((x) => x.d<=RADIUS_KM)
         .sort((a, b) => a.d - b.d || a.p.name.localeCompare(b.p.name, 'fr'));
 }
 
-function company_block(p) {
+function near_section(title, items, empty, limit) {
+    if(items.length==0) return `<section class="section"><h3 class="section-title">${title}</h3><p class="muted">${empty}</p></section>`;
+    const row = ({p, d}) => `<li data-id="${esc(p.id)}"><span class="swatch swatch-${p.kind=='lab' ? 'lab' : 'company'}" aria-hidden="true"></span>
+        <button type="button" class="goto" data-id="${esc(p.id)}">${esc(p.name)}</button><span class="dist">${km_text(d)}</span>
+        ${p.kind=='lab' && p.team?.['Nom'] ? `<span class="sub">${esc(p.team['Nom'])}</span>` : (p.kind=='company' && p.entry['Description'] ? `<span class="sub">${esc(p.entry['Description'])}</span>` : '')}</li>`;
+    const shown = items.slice(0, limit), rest = items.slice(limit);
+    return `<section class="section"><h3 class="section-title">${title} <span class="n">${items.length}</span></h3><ul class="near">${shown.map(row).join('')}</ul>`
+        + (rest.length ? `<details class="more"><summary>Voir les ${rest.length} autres</summary><ul class="near">${rest.map(row).join('')}</ul></details>` : '')
+        + '</section>';
+}
+
+const back_button = `<button type="button" class="back">${ICON.back}Vue d'ensemble</button>`;
+
+function company_html(p) {
     const e = p.entry;
     const cities = [...new Set(STATE.companies.filter((q) => q.k==p.k).map((q) => q.city))];
     const tags = [...as_list(e['Scientific-domain']), ...as_list(e['Application-domain'])];
-    return `<p class="kind kind-company"><span class="swatch swatch-company" aria-hidden="true"></span> Entreprise</p>
-        <h2>${e['url'] ? `<a href="${esc(e['url'])}" target="_blank" rel="noopener">${esc(e['Name'])}${NEW_TAB}</a>` : esc(e['Name'])}</h2>
+    return `<div class="panel-company">${back_button}
+        <p class="eyebrow eyebrow-company"><span class="swatch swatch-company" aria-hidden="true"></span>Entreprise</p>
+        <h2>${esc(e['Name'])}</h2>
         <p class="where">${esc(cities.join(', '))}${p.employees ? ' · ' + size_text(p.employees) : ''}</p>
+        <div class="actions">
+            ${e['url'] ? `<a class="action primary" href="${esc(e['url'])}" target="_blank" rel="noopener">${ICON.web}Site web${NEW_TAB}</a>` : ''}
+            ${e['Jobs'] ? `<a class="action" href="${esc(e['Jobs'])}" target="_blank" rel="noopener">${ICON.jobs}Offres d'emploi${NEW_TAB}</a>` : ''}
+            <button type="button" class="action center-btn">${ICON.center}Centrer</button>
+            <button type="button" class="action share-btn">${ICON.link}Copier le lien</button>
+        </div>
         ${e['Description'] ? `<p class="desc">${esc(e['Description'])}</p>` : ''}
         ${tags.length ? `<p class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</p>` : ''}
-        <p class="links">${e['Jobs'] ? `<a href="${esc(e['Jobs'])}" target="_blank" rel="noopener">Offres d'emploi${NEW_TAB}</a>` : ''}
-            <a href="${COMPANIES_LISTING}" target="_blank" rel="noopener">Listing des entreprises${NEW_TAB}</a></p>`;
+        ${near_section(`Équipes de recherche à moins de ${RADIUS_KM} km`, near(p, STATE.labs, () => false), `Aucune équipe de recherche du listing à moins de ${RADIUS_KM} km.`, 10)}
+        ${near_section(`Autres entreprises à moins de ${RADIUS_KM} km`, near(p, STATE.companies, (q) => q.k==p.k), 'Aucune autre entreprise du listing à proximité.', 6)}
+    </div>`;
 }
 
-function team_block(p) {
+function team_html(p) {
     const team = p.team || {}, lab = p.lab;
     const themes = team['Thèmes'] ?? lab['Thèmes'];
     const url = team['URL'] || lab['URL'];
-    const title = p.team_key ? `${esc(p.lab_key)} – ${esc(p.team_key)}` : esc(p.lab_key);
-    return `<div class="team">
-        <h3>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${title}${NEW_TAB}</a>` : title}${p.inria ? ' <span class="badge">Inria</span>' : ''}</h3>
-        ${team['Nom'] ? `<p class="team-name">${esc(team['Nom'])}</p>` : ''}
-        ${themes ? `<p class="desc">${esc(themes)}</p>` : ''}</div>`;
+    const title = p.team_key ? esc(p.team_key) : esc(p.lab_key);
+    return `<div class="team"><h3>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${title}${NEW_TAB}</a>` : title}${p.inria ? '<span class="badge">Inria</span>' : ''}</h3>
+        ${team['Nom'] ? `<p class="team-name">${esc(team['Nom'])}</p>` : ''}${themes ? `<p class="desc">${esc(themes)}</p>` : ''}</div>`;
 }
 
-function list_block(title, items, empty, limit) {
-    if(items.length==0) return `<h3 class="near-title">${title}</h3><p class="muted">${empty}</p>`;
-    const row = ({p, d}) => `<li><button type="button" class="goto" data-id="${esc(p.id)}">${esc(p.name)}</button>
-        <span class="dist">${km_text(d)}</span>${p.kind=='lab' && p.team?.['Nom'] ? `<span class="sub">${esc(p.team['Nom'])}</span>` : ''}</li>`;
-    const shown = items.slice(0, limit), rest = items.slice(limit);
-    return `<h3 class="near-title">${title} <span class="count">${items.length}</span></h3><ul class="near">${shown.map(row).join('')}</ul>`
-        + (rest.length ? `<details class="more"><summary>Voir les ${rest.length} autres</summary><ul class="near">${rest.map(row).join('')}</ul></details>` : '');
+function lab_html(sel) {
+    const teams = sel.multi || [sel], site = teams[0].site, lab = teams[0].lab;
+    return `<div class="panel-lab">${back_button}
+        <p class="eyebrow eyebrow-lab"><span class="swatch swatch-lab" aria-hidden="true"></span>Recherche${teams.length>1 ? ` · ${teams.length} équipes sur ce site` : ''}</p>
+        <h2>${esc(teams[0].lab_key)}</h2>
+        <p class="where">${esc(lab['Nom'] || '')}${teams[0].city ? ' · ' + esc(teams[0].city) : ''}</p>
+        <div class="actions">
+            ${lab['URL'] ? `<a class="action primary" href="${esc(lab['URL'])}" target="_blank" rel="noopener">${ICON.web}Laboratoire${NEW_TAB}</a>` : ''}
+            <button type="button" class="action center-btn">${ICON.center}Centrer</button>
+            <button type="button" class="action share-btn">${ICON.link}Copier le lien</button>
+        </div>
+        ${teams.map(team_html).join('')}
+        ${near_section(`Entreprises à moins de ${RADIUS_KM} km`, near(site, STATE.companies, () => false), `Aucune entreprise du listing à moins de ${RADIUS_KM} km.`, 12)}
+        ${near_section(`Autres équipes de recherche à moins de ${RADIUS_KM} km`, near(site, STATE.labs, (q) => q.site==site), 'Aucune autre équipe du listing à proximité.', 6)}
+    </div>`;
 }
 
-function render_panel(sel) {
-    if(sel==null) { PANEL.innerHTML = EMPTY_PANEL; render_hubs(); return; }
-    const center = sel.kind=='company' ? sel : sel.site;
-    const site_teams = sel.kind=='company' ? [] : (sel.multi || sel.site.teams);
-    let html = '';
-    if(sel.kind=='company') {
-        html += company_block(sel);
-        html += list_block(`Équipes de recherche à moins de ${RADIUS_KM} km`, near(center, STATE.labs, () => false),
-            `Aucune équipe de recherche du listing à moins de ${RADIUS_KM} km.`, 12);
-        html += list_block(`Autres entreprises à moins de ${RADIUS_KM} km`, near(center, STATE.companies, (q) => q.k==sel.k),
-            'Aucune autre entreprise du listing à proximité.', 8);
+// Pôles : les équipes de recherche regroupées par zone (zones du listing des entreprises, sinon équipes
+// à moins de 30 km les unes des autres), avec les entreprises à moins de 30 km d'une de leurs équipes
+function hubs() {
+    const zone_of = (p) => STATE.zones[String(p.city || p.lab['Ville'] || '').split(',')[0].trim()];
+    const list = [];
+    for(const p of [...STATE.labs].sort((a, b) => !zone_of(a) - !zone_of(b))) {
+        const zone = zone_of(p);
+        let hub = list.find((h) => (zone && h.zone==zone) || (!zone && h.teams.some((q) => km(p, q)<=RADIUS_KM)));
+        if(!hub) { hub = {zone, 'name': zone || String(p.city || p.lab['Ville']).split(',')[0].trim(), 'teams': []}; list.push(hub); }
+        hub.teams.push(p);
     }
-    else {
-        html += `<p class="kind kind-lab"><span class="swatch swatch-lab" aria-hidden="true"></span> Recherche${site_teams.length>1 ? ` · ${site_teams.length} équipes sur ce site` : ''}</p>`;
-        const lab = site_teams[0].lab;
-        html += `<h2>${esc(site_teams[0].lab_key)}</h2><p class="where">${esc(lab['Nom'] || '')}${site_teams[0].city ? ' · ' + esc(site_teams[0].city) : ''}</p>`;
-        html += site_teams.map(team_block).join('');
-        html += list_block(`Entreprises à moins de ${RADIUS_KM} km`, near(center, STATE.companies, () => false),
-            `Aucune entreprise du listing à moins de ${RADIUS_KM} km.`, 15);
-        html += list_block(`Autres équipes de recherche à moins de ${RADIUS_KM} km`, near(center, STATE.labs, (q) => q.site==sel.site),
-            'Aucune autre équipe du listing à proximité.', 8);
-    }
-    html += `<p class="panel-actions"><button type="button" class="reset">← Retour à la vue d'ensemble</button></p>`;
-    PANEL.innerHTML = `<div class="panel-sel">${html}</div>`;
+    return list.map((h) => ({...h,
+        'companies': new Set(STATE.companies.filter((c) => h.teams.some((t) => km(c, t)<=RADIUS_KM)).map((c) => c.k)).size,
+        'bounds': L.latLngBounds(h.teams.map((t) => [t.lat, t.lon])),
+    })).sort((a, b) => b.teams.length - a.teams.length || b.companies - a.companies);
+}
+
+function overview_html() {
+    const N_companies = new Set(STATE.companies.map((p) => p.k)).size;
+    STATE.hubs = hubs();
+    return `<div class="intro">
+        <h2>L'informatique graphique en France</h2>
+        <p>Les entreprises et les équipes de recherche du domaine. Cliquer une équipe de recherche pour voir les entreprises
+            à moins de ${RADIUS_KM} km, ou une entreprise pour voir les équipes proches.</p>
+        <div class="stats">
+            <div class="stat"><strong>${N_companies}</strong><span>entreprises en France</span></div>
+            <div class="stat lab"><strong>${STATE.labs.length}</strong><span>équipes de recherche</span></div>
+        </div></div>
+        <section class="section"><h3 class="section-title">Les pôles de recherche</h3>
+        <p class="muted">Nombre d'équipes de recherche <span class="swatch swatch-lab" aria-hidden="true"></span> et d'entreprises à moins de ${RADIUS_KM} km <span class="swatch swatch-company" aria-hidden="true"></span>.</p>
+        <ul class="hubs">${STATE.hubs.map((h, i) => `<li><button type="button" class="hub" data-i="${i}">${esc(h.name)}</button>
+            <span class="hub-n"><span class="swatch swatch-lab" aria-hidden="true"></span>${h.teams.length}</span>
+            <span class="hub-n"><span class="swatch swatch-company" aria-hidden="true"></span>${h.companies}</span></li>`).join('')}</ul></section>
+        <p class="footer-note">Données : <a href="${COMPANIES_LISTING}" target="_blank" rel="noopener">listing des entreprises${NEW_TAB}</a>
+            et <a href="${LABS_LISTING}" target="_blank" rel="noopener">listing des équipes de recherche${NEW_TAB}</a> de l'AFIG,
+            à compléter ou corriger sur GitHub ou par courriel (contact[at]asso-afig.fr).${STATE.updated ? ` Entreprises mises à jour le ${esc(STATE.updated)}.` : ''}</p>`;
+}
+
+function render_panel() {
+    const sel = STATE.selected;
+    BODY.innerHTML = sel==null ? overview_html() : (sel.kind=='company' ? company_html(sel) : lab_html(sel));
+    BODY.scrollTop = 0;
 }
 
 function select(sel, options = {}) {
     STATE.selected = sel;
     if(STATE.circle) { STATE.circle.remove(); STATE.circle = null; }
-    if(sel) {
-        const center = sel.kind=='company' ? sel : sel.site;
-        STATE.circle = L.circle([center.lat, center.lon], {'radius': RADIUS_KM*1000, 'color': sel.kind=='company' ? '#56720c' : '#a3162b',
-            'weight': 1.5, 'dashArray': '6 5', 'fillOpacity': 0.05, 'interactive': false}).addTo(STATE.map);
-        if(options.fly) STATE.map.flyToBounds(STATE.circle.getBounds(), {'duration': 0.6});
-    }
     draw_markers();
-    render_panel(sel);
-    // lien partageable vers la sélection
+    render_panel();
+    if(sel) {
+        const center = sel.kind=='company' ? sel : (sel.site || sel.multi[0].site);
+        STATE.circle = L.circle([center.lat, center.lon], {'radius': RADIUS_KM*1000, 'color': sel.kind=='company' ? '#3e5307' : '#6e0d1c',
+            'weight': 1.5, 'dashArray': '6 6', 'fillColor': sel.kind=='company' ? '#7fa81a' : '#a3162b', 'fillOpacity': 0.06, 'interactive': false}).addTo(STATE.map);
+        if(PANEL.classList.contains('is-closed')) set_panel('open');
+        if(options.fly!==false) fly_to(STATE.circle.getBounds());
+    }
     const params = new URLSearchParams();
     if(sel?.kind=='company') params.set('entreprise', sel.name);
     else if(sel?.kind=='lab') params.set('equipe', sel.multi ? sel.multi[0].lab_key : sel.id);
     history.replaceState(null, '', params.toString() ? '?' + params : location.pathname);
-    if(window.parentIFrame) window.parentIFrame.size();
-}
-
-// Pôles : les équipes de recherche regroupées par zone (zones du listing des entreprises, sinon équipes
-// à moins de 30 km les unes des autres), avec les entreprises à moins de 30 km d'une de leurs équipes
-function render_hubs() {
-    const element = document.querySelector('#hubs');
-    if(!element || STATE.labs.length==0) return;
-    const hubs = [];
-    const zone_of = (p) => STATE.zones[String(p.city || p.lab['Ville'] || '').split(',')[0].trim()];
-    // d'abord les équipes dont la ville a une zone, puis les autres rejoignent le pôle le plus proche
-    for(const p of [...STATE.labs].sort((a, b) => !zone_of(a) - !zone_of(b))) {
-        const city = String(p.city || p.lab['Ville'] || '').split(',')[0].trim();
-        const zone = zone_of(p);
-        let hub = hubs.find((h) => (zone && h.zone==zone) || (!zone && h.teams.some((q) => km(p, q)<=RADIUS_KM)));
-        if(!hub) { hub = {'zone': zone, 'city': zone || city, 'teams': []}; hubs.push(hub); }
-        hub.teams.push(p);
-    }
-    const list = hubs.map((h) => {
-        const companies = STATE.companies.filter((c) => h.teams.some((t) => km(c, t)<=RADIUS_KM));
-        const lat = h.teams.reduce((s, t) => s + t.lat, 0)/h.teams.length, lon = h.teams.reduce((s, t) => s + t.lon, 0)/h.teams.length;
-        return {...h, lat, lon, 'companies': new Set(companies.map((c) => c.k)).size,
-            'bounds': L.latLngBounds(h.teams.map((t) => [t.lat, t.lon])).pad(0.1)};
-    }).sort((a, b) => b.teams.length - a.teams.length || b.companies - a.companies);
-    element.innerHTML = `<h3 class="near-title">Les pôles</h3><p class="muted">Équipes de recherche et entreprises à moins de ${RADIUS_KM} km.</p>
-        <ul class="hubs">${list.map((h, i) => `<li><button type="button" class="hub" data-i="${i}">${esc(h.city)}</button>
-        <span class="hub-counts"><span class="swatch swatch-lab" aria-hidden="true"></span>${h.teams.length}
-        <span class="swatch swatch-company" aria-hidden="true"></span>${h.companies}</span></li>`).join('')}</ul>`;
-    element.querySelectorAll('.hub').forEach((b) => b.addEventListener('click', () => {
-        const h = list[+b.dataset.i];
-        STATE.map.flyToBounds(h.bounds.extend(L.latLng(h.lat, h.lon).toBounds(2*RADIUS_KM*1000)), {'duration': 0.6});
-    }));
 }
 
 function find_point(id) {
     return STATE.companies.find((p) => p.id==id) || STATE.labs.find((p) => p.id==id);
 }
 
-PANEL.addEventListener('click', (event) => {
+function highlight(id, on) {
+    const icon = STATE.markers.get(id)?._icon;
+    if(icon) icon.classList.toggle('is-hover', on);
+}
+
+BODY.addEventListener('click', (event) => {
     const go = event.target.closest('.goto');
-    if(go) { const p = find_point(go.dataset.id); if(p) select(p, {'fly': true}); return; }
-    if(event.target.closest('.reset')) select(null);
+    if(go) { const p = find_point(go.dataset.id); if(p) select(p); return; }
+    if(event.target.closest('.back')) { select(null); fly_to(FRANCE); return; }
+    if(event.target.closest('.center-btn') && STATE.circle) { fly_to(STATE.circle.getBounds()); return; }
+    const share = event.target.closest('.share-btn');
+    if(share) {
+        navigator.clipboard?.writeText(location.href).then(() => { share.lastChild.textContent = 'Lien copié'; }, () => {});
+        return;
+    }
+    const hub = event.target.closest('.hub');
+    if(hub) {
+        const h = STATE.hubs[+hub.dataset.i];
+        const c = h.bounds.getCenter();
+        fly_to(h.bounds.extend(L.latLng(c.lat, c.lng).toBounds(2*RADIUS_KM*1000)));
+        if(MOBILE.matches) set_panel('closed');
+    }
+});
+BODY.addEventListener('mouseover', (event) => { const li = event.target.closest('.near li'); if(li) highlight(li.dataset.id, true); });
+BODY.addEventListener('mouseout', (event) => { const li = event.target.closest('.near li'); if(li) highlight(li.dataset.id, false); });
+
+$('#panel-toggle').addEventListener('click', () => set_panel(PANEL.classList.contains('is-closed') ? 'open' : 'closed'));
+$('#sheet-handle').addEventListener('click', () => {
+    if(PANEL.classList.contains('is-closed')) set_panel('open');
+    else if(PANEL.classList.contains('is-expanded')) set_panel('closed');
+    else set_panel('expanded');
+});
+
+// ---------------------------------------------------------------------------
+// Recherche (filtre la carte et propose des résultats), couches, régions
+// ---------------------------------------------------------------------------
+
+const SEARCH = $('#search'), SUGGEST = $('#suggestions');
+let suggestions = [], active = -1;
+
+function show_suggestions() {
+    const q = STATE.query;
+    if(q=='') { SUGGEST.hidden = true; SEARCH.setAttribute('aria-expanded', 'false'); return; }
+    const teams = STATE.labs.filter(matches).slice(0, 5);
+    const seen = new Set();
+    const companies = STATE.companies.filter((p) => matches(p) && !seen.has(p.k) && seen.add(p.k)).slice(0, 8 - teams.length);
+    suggestions = [...teams, ...companies];
+    active = -1;
+    SUGGEST.innerHTML = suggestions.length==0 ? '<li class="s-empty">Aucun résultat</li>' : suggestions.map((p, i) =>
+        `<li role="option" id="s-${i}" data-i="${i}" aria-selected="false"><span class="swatch swatch-${p.kind=='lab' ? 'lab' : 'company'}" aria-hidden="true"></span>
+        <span class="s-name">${esc(p.name)}</span><span class="s-sub">${esc(p.kind=='lab' ? (p.team?.['Nom'] || p.lab['Nom'] || '') + ' · ' + p.city : p.city + (p.entry['Description'] ? ' · ' + p.entry['Description'] : ''))}</span></li>`).join('');
+    SUGGEST.hidden = false;
+    SEARCH.setAttribute('aria-expanded', 'true');
+}
+
+function choose(i) {
+    const p = suggestions[i];
+    if(!p) return;
+    SUGGEST.hidden = true;
+    SEARCH.setAttribute('aria-expanded', 'false');
+    select(p);
+}
+
+let timer = null;
+SEARCH.addEventListener('input', () => {
+    $('#clear-search').hidden = SEARCH.value=='';
+    clearTimeout(timer);
+    timer = setTimeout(() => { STATE.query = norm(SEARCH.value.trim()); draw_markers(); show_suggestions(); }, 120);
+});
+SEARCH.addEventListener('keydown', (event) => {
+    if(SUGGEST.hidden) return;
+    if(event.key=='ArrowDown' || event.key=='ArrowUp') {
+        event.preventDefault();
+        active = (active + (event.key=='ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length;
+        SUGGEST.querySelectorAll('li').forEach((li, i) => li.setAttribute('aria-selected', String(i==active)));
+        SEARCH.setAttribute('aria-activedescendant', 's-' + active);
+    }
+    else if(event.key=='Enter') { event.preventDefault(); choose(active>=0 ? active : 0); }
+    else if(event.key=='Escape') { SUGGEST.hidden = true; }
+});
+SEARCH.addEventListener('focus', () => { if(STATE.query) show_suggestions(); });
+SUGGEST.addEventListener('mousedown', (event) => { const li = event.target.closest('li[data-i]'); if(li) { event.preventDefault(); choose(+li.dataset.i); } });
+document.addEventListener('click', (event) => { if(!event.target.closest('.searchbox')) SUGGEST.hidden = true; });
+$('#clear-search').addEventListener('click', () => {
+    SEARCH.value = ''; STATE.query = ''; $('#clear-search').hidden = true; SUGGEST.hidden = true; draw_markers(); SEARCH.focus();
+});
+
+for(const [chip, layer] of [['#chip-companies', 'companies'], ['#chip-labs', 'labs']]) {
+    $(chip).addEventListener('click', () => {
+        STATE.show[layer] = !STATE.show[layer];
+        $(chip).setAttribute('aria-pressed', String(STATE.show[layer]));
+        draw_markers();
+    });
+}
+
+const REGIONS_BTN = $('#regions-btn'), REGIONS_MENU = $('#regions');
+REGIONS_MENU.innerHTML = REGIONS.map((r, i) => `<button type="button" role="menuitem" data-i="${i}">${esc(r.label)}</button>`).join('');
+function toggle_regions(open) {
+    REGIONS_MENU.hidden = !open;
+    REGIONS_BTN.setAttribute('aria-expanded', String(open));
+    if(open) {
+        const r = REGIONS_BTN.getBoundingClientRect();
+        REGIONS_MENU.style.top = `${r.bottom + 6}px`;
+        REGIONS_MENU.style.left = `${Math.min(r.left, window.innerWidth - 240)}px`;
+        REGIONS_MENU.querySelector('button').focus();
+    }
+}
+REGIONS_BTN.addEventListener('click', (event) => { event.stopPropagation(); toggle_regions(REGIONS_MENU.hidden); });
+REGIONS_MENU.addEventListener('click', (event) => {
+    const b = event.target.closest('button');
+    if(!b) return;
+    toggle_regions(false);
+    fly_to(REGIONS[+b.dataset.i].bounds);
+});
+document.addEventListener('click', (event) => { if(!event.target.closest('.chip-menu')) toggle_regions(false); });
+
+document.addEventListener('keydown', (event) => {
+    if(event.key!='Escape') return;
+    if(!REGIONS_MENU.hidden) { toggle_regions(false); REGIONS_BTN.focus(); }
+    else if(STATE.selected && document.activeElement!=SEARCH) select(null, {'fly': false});
 });
 
 // ---------------------------------------------------------------------------
 // Démarrage
 // ---------------------------------------------------------------------------
 
-function init_frames() {
-    const nav = document.querySelector('#frames');
-    nav.innerHTML = FRAMES.map((f, i) => `<button type="button" class="frame" data-i="${i}">${esc(f.label)}</button>`).join('');
-    nav.addEventListener('click', (event) => {
-        const b = event.target.closest('.frame');
-        if(b) STATE.map.flyToBounds(FRAMES[+b.dataset.i].bounds, {'duration': 0.6});
-    });
-}
-
 function select_from_url() {
     const params = new URLSearchParams(location.search);
     const company = params.get('entreprise'), team = params.get('equipe');
     if(company) {
         const p = STATE.companies.find((q) => norm(q.name)==norm(company));
-        if(p) select(p, {'fly': true});
+        if(p) select(p);
     }
     else if(team) {
         const p = STATE.labs.find((q) => norm(q.id)==norm(team));
         const lab = STATE.labs.filter((q) => norm(q.lab_key)==norm(team));
-        if(p) select(p, {'fly': true});
-        else if(lab.length) select(lab.length==1 ? lab[0] : {'kind': 'lab', 'site': lab[0].site, 'multi': lab.filter((q) => q.site==lab[0].site)}, {'fly': true});
+        if(p) select(p);
+        else if(lab.length) { // un labo : son site principal (ses coordonnées), sinon le site qui a le plus d'équipes
+            const home = lab[0].lab['Coordonnées'];
+            const sites = [...new Set(lab.map((q) => q.site))];
+            const site = sites.find((s) => home && s.lat==home[0] && s.lon==home[1])
+                || sites.sort((a, b) => lab.filter((q) => q.site==b).length - lab.filter((q) => q.site==a).length)[0];
+            select(site_selection(site, lab.filter((q) => q.site==site)));
+        }
     }
 }
 
 async function start() {
     create_map();
-    init_frames();
+    set_panel(MOBILE.matches ? 'closed' : 'open');
+    STATE.map.fitBounds(FRANCE, view_padding());
+    BODY.innerHTML = '<p class="muted">Chargement des données…</p>';
     try {
         const [companies, labs] = await Promise.all(Object.values(SOURCES).map((url) => fetch(url).then((r) => {
             if(!r.ok) throw new Error(`HTTP ${r.status} : ${url}`);
@@ -376,26 +529,16 @@ async function start() {
         })));
         STATE.companies = build_companies(companies);
         STATE.labs = build_labs(labs);
-        STATE.sites = build_sites(STATE.labs);
         STATE.zones = companies['Zones'] || {};
-        if(companies['Updated']) document.querySelector('#updated').textContent = `Listing des entreprises mis à jour le ${companies['Updated']}.`;
+        STATE.updated = companies['Updated'] || '';
     }
     catch(error) {
-        PANEL.innerHTML = `<p class="error">Les données n'ont pas pu être chargées (${esc(error.message)}).</p>`;
+        BODY.innerHTML = `<p class="error">Les données n'ont pas pu être chargées (${esc(error.message)}).</p>`;
         return;
     }
-    STATE.map.invalidateSize();
-    STATE.map.fitBounds(FRAMES[0].bounds);
     draw_markers();
-    render_hubs();
+    render_panel();
     select_from_url();
-    for(const id of ['show-companies', 'show-labs']) document.querySelector('#' + id).addEventListener('change', draw_markers);
-    let timer = null;
-    document.querySelector('#search').addEventListener('input', (event) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => { STATE.query = norm(event.target.value.trim()); draw_markers(); }, 150);
-    });
-    document.addEventListener('keydown', (event) => { if(event.key=='Escape' && STATE.selected) select(null); });
 }
 
 start();
