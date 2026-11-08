@@ -202,7 +202,7 @@ function create_map() {
 
 // Zoom à la molette continu, à la Google Maps : chaque cran (ou geste de trackpad) ajoute au zoom visé, et la
 // carte le rejoint en douceur autour du pointeur ; aucun cran n'est perdu, même pendant le mouvement.
-const WHEEL_PX_PER_LEVEL = 120;  // un cran de souris (100 px) ≈ 0,8 niveau ; un geste de trackpad de 120 px ≈ 1 niveau
+const WHEEL_PX_PER_LEVEL = 200;  // un cran de souris (100 px) ≈ un demi-niveau ; un geste de trackpad de 200 px ≈ 1 niveau
 function smooth_wheel(map, enabled) {
     let target = null, anchor = null, anchor_ll = null, frame = null, timer = null;
     // le lieu sous le pointeur reste sous le pointeur (calcul exact à chaque image, sans accumuler d'arrondis)
