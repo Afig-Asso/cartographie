@@ -13,7 +13,12 @@ const SOURCES = {
     'labs': IS_LOCAL ? '../../research-team/json/data.json' : 'https://raw.githubusercontent.com/Afig-Asso/research-team/main/json/data.json',
 };
 const COMPANIES_LISTING = 'https://afig-asso.github.io/entreprises/';
-const LABS_LISTING = 'https://github.com/Afig-Asso/research-team';
+const LABS_LISTING = 'https://afig-asso.github.io/research-team/';
+// ancre de la fiche dans le listing des équipes : #LABO-SIGLE (hors [A-Za-z0-9] -> « - »),
+// et pour un labo sans équipe, la ville dans l'annuaire (#v-chalon-sur-saone)
+const anchor_id = (s) => String(s).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const city_id = (s) => 'v-' + String(s).split(',')[0].trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const team_sheet = (p) => LABS_LISTING + '#' + (p.team_key ? anchor_id(p.lab_key + '-' + p.team_key) : city_id(p.city));
 const RADIUS_KM = 30;
 const DOTS_ZOOM = 10;  // à partir de ce zoom : chaque point séparément, plus de regroupements
 const FRANCE = [[42.2, -4.8], [51.1, 8.3]];
@@ -359,7 +364,8 @@ function team_html(p) {
     const url = team['URL'] || lab['URL'];
     const title = p.team_key ? esc(p.team_key) : esc(p.lab_key);
     return `<div class="team"><h3>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${title}${NEW_TAB}</a>` : title}${p.inria ? '<span class="badge">Inria</span>' : ''}</h3>
-        ${team['Nom'] ? `<p class="team-name">${esc(team['Nom'])}</p>` : ''}${themes ? `<p class="desc">${esc(themes)}</p>` : ''}</div>`;
+        ${team['Nom'] ? `<p class="team-name">${esc(team['Nom'])}</p>` : ''}${themes ? `<p class="desc">${esc(themes)}</p>` : ''}
+        <a class="team-sheet" href="${esc(team_sheet(p))}" target="_blank" rel="noopener">${ICON.list}Fiche dans le listing${NEW_TAB}</a></div>`;
 }
 
 function lab_html(sel) {
