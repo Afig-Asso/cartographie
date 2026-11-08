@@ -150,8 +150,9 @@ function dot_icon(p, selected) {
     return L.divIcon({'className': 'pin dot' + (p.employees==null ? ' dot-unknown' : '') + (selected ? ' is-selected' : ''), 'html': '', 'iconSize': [size, size]});
 }
 
+// une équipe de recherche reste plus grosse que n'importe quelle entreprise seule (au plus 30 px)
 function lab_icon(N, selected) {
-    const size = N>1 ? 28 : 20;
+    const size = N>1 ? 40 : 34;
     return L.divIcon({'className': 'pin diamond' + (selected ? ' is-selected' : ''), 'html': N>1 ? `<span>${N}</span>` : '', 'iconSize': [size, size]});
 }
 
@@ -197,7 +198,8 @@ function create_map() {
         'showCoverageOnHover': false, 'maxClusterRadius': 26, 'spiderfyOnMaxZoom': true, 'disableClusteringAtZoom': DOTS_ZOOM,
         'iconCreateFunction': (c) => {
             const N = c.getAllChildMarkers().reduce((s, m) => s + m.options.teams, 0);
-            return L.divIcon({'className': 'pin diamond', 'html': `<span>${N}</span>`, 'iconSize': [30, 30]});
+            const size = Math.round(40 + 4*Math.log2(N));
+            return L.divIcon({'className': 'pin diamond', 'html': `<span>${N}</span>`, 'iconSize': [size, size]});
         },
     }).addTo(map);
     let spread_timer = null;  // pendant un zoom continu, zoomend arrive à chaque image : on écarte les points une fois le zoom posé

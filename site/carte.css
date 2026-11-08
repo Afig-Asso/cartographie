@@ -189,7 +189,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .leaflet-marker-icon.diamond { color: white; }
 .leaflet-marker-icon.diamond::before { content: ""; position: absolute; inset: 14%; background: var(--lab); transform: rotate(45deg);
     border-radius: 3px; box-shadow: 0 0 0 2px white, 0 2px 5px rgba(0, 0, 0, 0.35); }
-.leaflet-marker-icon.diamond span { position: relative; }
+.leaflet-marker-icon.diamond span { position: relative; font-size: 0.86rem; }
 .leaflet-marker-icon.cluster-company { border-radius: 50%; background: var(--company-ring); color: white;
     box-shadow: 0 0 0 4px rgba(127, 168, 26, 0.45), 0 2px 5px rgba(0, 0, 0, 0.25); }
 .leaflet-marker-icon.is-selected.dot { box-shadow: 0 0 0 3px var(--ink), 0 0 0 6px white, 0 3px 8px rgba(0, 0, 0, 0.35); }
