@@ -599,31 +599,9 @@ for(const [chip, layer] of [['#chip-companies', 'companies'], ['#chip-labs', 'la
     });
 }
 
-const REGIONS_BTN = $('#regions-btn'), REGIONS_MENU = $('#regions');
-REGIONS_MENU.innerHTML = REGIONS.map((r, i) => `<button type="button" role="menuitem" data-i="${i}">${esc(r.label)}</button>`).join('');
-function toggle_regions(open) {
-    REGIONS_MENU.hidden = !open;
-    REGIONS_BTN.setAttribute('aria-expanded', String(open));
-    if(open) {
-        const r = REGIONS_BTN.getBoundingClientRect();
-        REGIONS_MENU.style.top = `${r.bottom + 6}px`;
-        REGIONS_MENU.style.left = `${Math.min(r.left, window.innerWidth - 240)}px`;
-        REGIONS_MENU.querySelector('button').focus();
-    }
-}
-REGIONS_BTN.addEventListener('click', (event) => { event.stopPropagation(); toggle_regions(REGIONS_MENU.hidden); });
-REGIONS_MENU.addEventListener('click', (event) => {
-    const b = event.target.closest('button');
-    if(!b) return;
-    toggle_regions(false);
-    fly_to(REGIONS[+b.dataset.i].bounds);
-});
-document.addEventListener('click', (event) => { if(!event.target.closest('.chip-menu')) toggle_regions(false); });
-
 document.addEventListener('keydown', (event) => {
     if(event.key!='Escape') return;
-    if(!REGIONS_MENU.hidden) { toggle_regions(false); REGIONS_BTN.focus(); }
-    else if(STATE.selected && document.activeElement!=SEARCH) select(null);
+    if(STATE.selected && document.activeElement!=SEARCH) select(null);
 });
 
 // ---------------------------------------------------------------------------

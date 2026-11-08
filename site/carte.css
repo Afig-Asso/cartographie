@@ -88,11 +88,6 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .layer-chip[aria-pressed="false"] { color: var(--muted); background: #f1f2ef; box-shadow: none; outline: 1px solid #d5d8d1; }
 .layer-chip[aria-pressed="false"] .swatch { opacity: 0.35; }
 .chip-count { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--muted); font-size: 0.8rem; }
-.chev { width: 18px; height: 18px; margin-right: -4px; }
-.chip-menu { position: relative; flex: none; }
-.menu { position: fixed; z-index: 1100; min-width: 230px; padding: 6px 0; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-2); }
-.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 16px; font-size: 0.9rem; }
-.menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
 
 /* ---- Panneau ---- */
 .panel { position: absolute; z-index: 900; top: calc(var(--bar) + var(--gap) + 48px + 10px); left: var(--gap); bottom: var(--gap); width: calc(var(--panel-w) - var(--gap));
