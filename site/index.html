@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Carte des entreprises et des équipes de recherche en informatique graphique en France, maintenue par l'AFIG.">
+    <title>Carte de l'informatique graphique en France - AFIG</title>
+    <link rel="icon" href="favicon.ico">
+    <script>
+        // Page intégrée en iframe (site de l'AFIG)
+        try { if (window.self !== window.top) { document.documentElement.classList.add('embedded'); } }
+        catch (e) { document.documentElement.classList.add('embedded'); }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Raleway:wght@700;800&display=swap">
+    <link rel="stylesheet" href="leaflet/leaflet.css">
+    <link rel="stylesheet" href="leaflet/MarkerCluster.css">
+    <link rel="stylesheet" href="carte.css">
+    <script src="iframeResizer/iframeResizer.contentWindow.min.js" defer></script>
+    <script src="leaflet/leaflet.js" defer></script>
+    <script src="leaflet/leaflet.markercluster.js" defer></script>
+    <script src="carte.js" defer></script>
+</head>
+
+<body>
+    <header class="band">
+        <h1>Carte de l'informatique graphique en France</h1>
+        <p class="band-intro">Les entreprises et les équipes de recherche du domaine, pour voir qui travaille près de qui.
+            Cliquer un point montre ce qui se trouve à moins de 30 km.</p>
+        <div class="toolbar">
+            <label class="layer layer-companies"><input type="checkbox" id="show-companies" checked>
+                <span class="swatch swatch-company" aria-hidden="true"></span> Entreprises <span class="count" id="count-companies"></span></label>
+            <label class="layer layer-labs"><input type="checkbox" id="show-labs" checked>
+                <span class="swatch swatch-lab" aria-hidden="true"></span> Équipes de recherche <span class="count" id="count-labs"></span></label>
+            <div class="search">
+                <label for="search" class="visually-hidden">Rechercher</label>
+                <input type="search" id="search" placeholder="Rechercher : nom, ville, thème…" autocomplete="off">
+            </div>
+        </div>
+    </header>
+
+    <nav class="frames" id="frames" aria-label="Cadrer la carte"></nav>
+
+    <main class="layout">
+        <div class="map-wrap">
+            <div id="map" class="map" role="region" aria-label="Carte des entreprises et des équipes de recherche"></div>
+            <p class="map-help" id="map-help">Cliquer la carte pour zoomer à la molette.</p>
+        </div>
+        <aside id="panel" class="panel" aria-live="polite">
+            <div class="panel-empty">
+                <h2>Qui est près de qui ?</h2>
+                <p>Cliquer une équipe de recherche <span class="swatch swatch-lab" aria-hidden="true"></span>
+                    pour voir les entreprises à moins de 30 km, ou une entreprise <span class="swatch swatch-company" aria-hidden="true"></span>
+                    pour voir les équipes de recherche proches.</p>
+                <div id="hubs"></div>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="footer">
+        <p>Données : <a href="https://github.com/Afig-Asso/entreprises" target="_blank" rel="noopener">listing des entreprises</a>
+            et <a href="https://github.com/Afig-Asso/research-team" target="_blank" rel="noopener">listing des équipes de recherche</a>
+            de l'AFIG (à compléter ou corriger sur GitHub, ou par courriel à contact[at]asso-afig.fr).
+            Fond de carte © contributeurs OpenStreetMap.</p>
+        <p id="updated"></p>
+    </footer>
+</body>
+</html>

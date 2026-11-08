@@ -1,0 +1,31 @@
+# Simple workflow for deploying static content to GitHub Pages
+name: Deploy Site
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:  write-all
+
+
+jobs:
+  # Single deploy job since we're just deploying
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Pushes to another repository
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+        with:
+          source-directory: 'site'
+          destination-github-username: 'Afig-Asso'
+          destination-repository-name: 'Afig-Asso.github.io'
+          user-email: association.afig@gmail.com
+          user-name: 'Afig-Asso'
+          target-branch: main
+          target-directory: 'cartographie'

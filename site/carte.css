@@ -1,0 +1,126 @@
+/* Carte de l'informatique graphique en France (AFIG) — mêmes couleurs que le listing des entreprises */
+:root {
+    --afig-50:  #f4fae3;
+    --afig-100: #ecf6cf;
+    --afig-200: #d6ee8f;
+    --afig:     #a2d026;   /* vert AFIG */
+    --afig-600: #6f8f12;
+    --afig-700: #56720c;   /* texte vert (5,5:1 sur blanc) */
+    --afig-800: #3e5307;
+    --ink:      #1d2a00;   /* texte sur vert AFIG */
+    --lab:      #a3162b;   /* équipes de recherche : rouge foncé (7:1 sur blanc) */
+    --lab-50:   #fbeef0;
+    --text:   #1f2328;
+    --text-2: #3a4046;
+    --muted:  #5b6168;
+    --line:   #e6e9e2;
+    --border: #8a9086;
+    --radius: 12px;
+    --shadow-md: 0 6px 20px rgba(29, 42, 0, 0.10);
+    --font: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-title: "Raleway", var(--font);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+    font-family: var(--font); font-size: 1rem; line-height: 1.5; color: var(--text); background: white;
+    max-width: 1400px; margin: 0 auto; padding: 0 1rem 2rem; -webkit-font-smoothing: antialiased; accent-color: var(--afig-700);
+}
+.embedded body { background: transparent; padding-top: 0; }
+h1, h2, h3 { line-height: 1.25; margin: 0; }
+p { margin: 0; }
+a { color: var(--afig-800); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- Bandeau ---- */
+.band { background: var(--afig); color: var(--ink); border-radius: 0 0 16px 16px; padding: 1rem 1.25rem 0.9rem; }
+.band h1 { font-family: var(--font-title); font-weight: 800; font-size: 1.45rem; }
+.band-intro { margin-top: 0.2rem; font-size: 0.92rem; color: #2a3a05; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.75rem; }
+.layer { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255, 255, 255, 0.7); border-radius: 999px;
+    padding: 0.3rem 0.8rem 0.3rem 0.6rem; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
+.layer:has(input:not(:checked)) { opacity: 0.6; }
+.count { font-weight: 700; font-variant-numeric: tabular-nums; background: var(--ink); color: var(--afig); border-radius: 999px;
+    padding: 0 0.45rem; font-size: 0.78rem; }
+.search { flex: 1 1 240px; display: flex; }
+.search input { width: 100%; padding: 0.45rem 0.9rem; border: 1px solid var(--afig-600); border-radius: 999px; background: white; }
+
+/* repères de légende : rond vert (entreprise), losange rouge (équipe) */
+.swatch { display: inline-block; width: 11px; height: 11px; flex: none; vertical-align: -1px; }
+.swatch-company { border-radius: 50%; background: var(--afig); box-shadow: 0 0 0 1.5px var(--afig-700); }
+.swatch-lab { background: var(--lab); transform: rotate(45deg) scale(0.85); }
+
+.frames { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.75rem 0 0.6rem; }
+.frame { border: 1px solid var(--line); background: white; border-radius: 999px; padding: 0.2rem 0.75rem; font-size: 0.84rem; color: var(--text-2); }
+.frame:hover, .frame:focus-visible { border-color: var(--afig-600); background: var(--afig-50); color: var(--text); }
+
+/* ---- Carte et panneau ---- */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 1rem; align-items: start; }
+.map-wrap { position: relative; }
+.map { height: min(78vh, 760px); min-height: 440px; border-radius: var(--radius); border: 1px solid var(--line); z-index: 0; }
+.map-help { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: rgba(31, 35, 40, 0.75); color: white;
+    font-size: 0.78rem; padding: 0.2rem 0.7rem; border-radius: 999px; pointer-events: none; transition: opacity 300ms; z-index: 500; }
+.map-help.is-hidden { opacity: 0; }
+.panel { border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; max-height: min(78vh, 760px); min-height: 440px; overflow-y: auto; }
+.panel h2 { font-family: var(--font-title); font-weight: 800; font-size: 1.2rem; margin-top: 0.15rem; }
+.panel h2 a { color: var(--text); }
+.panel-empty p { margin-top: 0.4rem; font-size: 0.9rem; color: var(--text-2); }
+.kind { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 0.4rem; }
+.kind-company { color: var(--afig-700); }
+.kind-lab { color: var(--lab); }
+.where { margin-top: 0.2rem; color: var(--text-2); font-size: 0.88rem; }
+.desc { margin-top: 0.4rem; color: var(--muted); font-size: 0.84rem; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.5rem; }
+.tags span { background: var(--afig-100); color: var(--afig-800); border-radius: 6px; padding: 0 0.4rem; font-size: 0.76rem; }
+.links { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin-top: 0.6rem; font-size: 0.84rem; }
+.team { margin-top: 0.8rem; padding: 0.55rem 0.7rem; border-left: 3px solid var(--lab); background: var(--lab-50); border-radius: 0 8px 8px 0; }
+.team h3 { font-size: 0.95rem; }
+.team h3 a { color: var(--lab); }
+.team-name { font-size: 0.84rem; color: var(--text-2); }
+.badge { font-size: 0.7rem; font-weight: 700; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 0.3rem; vertical-align: 1px; }
+.near-title { font-size: 0.92rem; margin-top: 1.1rem; padding-top: 0.7rem; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 0.5rem; }
+.near, .hubs { list-style: none; margin: 0.4rem 0 0; padding: 0; }
+.near li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 0.5rem; padding: 0.25rem 0; border-bottom: 1px solid var(--line); font-size: 0.86rem; }
+.near .sub { grid-column: 1 / -1; color: var(--muted); font-size: 0.78rem; }
+.goto, .hub, .reset { border: 0; background: none; padding: 0; text-align: left; color: var(--text); font-weight: 600; }
+.goto:hover, .goto:focus-visible, .hub:hover, .hub:focus-visible { color: var(--afig-800); text-decoration: underline; }
+.dist { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; white-space: nowrap; }
+.more summary { cursor: pointer; font-size: 0.84rem; color: var(--afig-800); margin-top: 0.4rem; }
+.muted { color: var(--muted); font-size: 0.84rem; margin-top: 0.3rem; }
+.panel-actions { margin-top: 1rem; }
+.reset { color: var(--afig-800); font-size: 0.88rem; }
+.hubs li { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; border-bottom: 1px solid var(--line); font-size: 0.88rem; }
+.hub-counts { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--text-2); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.hub-counts .swatch { margin-left: 0.4rem; }
+.error { color: var(--lab); }
+
+/* ---- Repères ---- */
+.leaflet-marker-icon.pin { display: flex; align-items: center; justify-content: center; font-family: var(--font); font-weight: 700;
+    font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.leaflet-marker-icon.dot { border-radius: 50%; background: var(--afig); box-shadow: 0 0 0 1px var(--afig-700), 0 1px 3px rgba(29, 42, 0, 0.4); }
+.leaflet-marker-icon.dot-unknown { background: #d9e8b0; }
+.leaflet-marker-icon.diamond { background: transparent; color: white; }
+.leaflet-marker-icon.diamond::before { content: ""; position: absolute; inset: 12%; background: var(--lab); transform: rotate(45deg);
+    border: 2px solid white; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); border-radius: 2px; }
+.leaflet-marker-icon.diamond span { position: relative; }
+.leaflet-marker-icon.cluster-company { border-radius: 50%; background: var(--ink); color: var(--afig); border: 3px solid rgba(162, 208, 38, 0.6); }
+.leaflet-marker-icon.is-selected.dot { box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px white; }
+.leaflet-marker-icon.is-selected.diamond::before { background: #5c0a17; border-color: var(--ink); }
+.leaflet-marker-icon.pin:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.tip-city { color: var(--muted); font-size: 0.78rem; }
+.leaflet-tooltip { font-family: var(--font); font-size: 0.82rem; font-weight: 600; }
+
+.footer { margin-top: 1rem; font-size: 0.8rem; color: var(--muted); }
+.footer p + p { margin-top: 0.2rem; }
+
+@media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .map { height: 62vh; min-height: 360px; }
+    .panel { max-height: none; min-height: 0; }
+}
+@media (max-width: 520px) {
+    body { padding: 0 0.5rem 1.5rem; }
+    .band h1 { font-size: 1.2rem; }
+}
