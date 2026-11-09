@@ -36,6 +36,7 @@ const MOBILE = window.matchMedia('(max-width: 760px)');
 const STATE = {
     'map': null, 'companies': [], 'labs': [], 'zones': {}, 'groups': {}, 'markers': new Map(),
     'circle': null, 'selected': null, 'query': '', 'show': {'companies': true, 'labs': true}, 'updated': '',
+    'warning': '',  // une des deux sources n'a pas pu être chargée
 };
 const $ = (s) => document.querySelector(s);
 const PANEL = $('#panel'), BODY = $('#panel-body');
@@ -43,6 +44,13 @@ const PANEL = $('#panel'), BODY = $('#panel-body');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const as_list = (v) => v==null ? [] : (Array.isArray(v) ? v : String(v).split(',')).map((x) => String(x).trim()).filter((x) => x!='');
+// [lat, lon] valides, sinon null : une fiche mal saisie est ignorée au lieu de bloquer toute la carte
+const valid_coords = (c, name) => {
+    if(c==null) return null;
+    if(Array.isArray(c) && c.length==2 && c.every((v) => typeof v=='number' && isFinite(v))) return c;
+    console.warn('Coordonnées invalides, point ignoré :', name, c);
+    return null;
+};
 const NEW_TAB = '<span class="visually-hidden"> (nouvel onglet)</span>';
 const ICON = {
     'back': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 7-5 5 5 5"/></svg>',
@@ -95,7 +103,7 @@ function build_companies(data) {
     data['Listing'].forEach((entry, k) => {
         const seen = new Set();
         french_places(entry['Place']).forEach((p, j) => {
-            const coords = p.coords || places['France/' + p.city];
+            const coords = valid_coords(p.coords, entry['Name']) || valid_coords(places['France/' + p.city], p.city);
             if(!coords || seen.has(coords.join(','))) return;
             seen.add(coords.join(','));
             out.push({
@@ -114,7 +122,7 @@ function build_labs(data) {
     const out = [];
     for(const [lab_key, lab] of Object.entries(data)) {
         const add = (team_key, team) => {
-            const coords = (team && team['Coordonnées']) || lab['Coordonnées'];
+            const coords = valid_coords(team?.['Coordonnées'], team_key) || valid_coords(lab['Coordonnées'], lab_key);
             if(!coords) return;
             const ville = (team && team['Ville']) || lab['Ville'] || '';
             out.push({
@@ -448,6 +456,7 @@ function overview_html() {
     const N_companies = new Set(STATE.companies.map((p) => p.k)).size;
     STATE.places = places();
     return `<div class="intro">
+        ${STATE.warning ? `<p class="error">${STATE.warning}</p>` : ''}
         <h2>L'informatique graphique en France</h2>
         <p>Les entreprises et les équipes de recherche du domaine. Cliquer une équipe de recherche pour voir les entreprises
             à moins de ${RADIUS_KM} km, ou une entreprise pour voir les équipes proches.</p>
@@ -634,23 +643,31 @@ async function start() {
     set_panel(MOBILE.matches ? 'closed' : 'open');
     STATE.map.fitBounds(FRANCE, view_padding());
     BODY.innerHTML = '<p class="muted">Chargement des données…</p>';
+    // les deux sources sont indépendantes : si l'une échoue (réseau, délai, donnée invalide), l'autre s'affiche
+    const load = (url, build) => fetch(url, AbortSignal.timeout ? {'signal': AbortSignal.timeout(20000)} : {})
+        .then((r) => { if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then(build);
+    const [companies, labs] = await Promise.allSettled([
+        load(SOURCES.companies, (data) => {
+            STATE.companies = build_companies(data);
+            STATE.zones = data['Zones'] || {};
+            STATE.updated = data['Updated'] || '';
+        }),
+        load(SOURCES.labs, (data) => { STATE.labs = build_labs(data); }),
+    ]);
+    const failed = [[companies, 'Les entreprises'], [labs, 'Les équipes de recherche']].filter(([r]) => r.status=='rejected');
+    failed.forEach(([r]) => console.log('Erreur de chargement', r.reason));
+    STATE.warning = failed.map(([r, what]) => `${what} n'ont pas pu être chargées (${r.reason.name=='TimeoutError' ? 'pas de réponse du serveur' : esc(r.reason.message)}).`).join(' ');
+    if(failed.length==2) { BODY.innerHTML = `<p class="error">${STATE.warning}</p>`; return; }
     try {
-        const [companies, labs] = await Promise.all(Object.values(SOURCES).map((url) => fetch(url).then((r) => {
-            if(!r.ok) throw new Error(`HTTP ${r.status} : ${url}`);
-            return r.json();
-        })));
-        STATE.companies = build_companies(companies);
-        STATE.labs = build_labs(labs);
-        STATE.zones = companies['Zones'] || {};
-        STATE.updated = companies['Updated'] || '';
+        draw_markers();
+        render_panel();
+        select_from_url();
     }
     catch(error) {
-        BODY.innerHTML = `<p class="error">Les données n'ont pas pu être chargées (${esc(error.message)}).</p>`;
-        return;
+        console.log('Erreur d\'affichage', error);
+        BODY.innerHTML = `<p class="error">Erreur lors de l'affichage de la carte (${esc(error.message)}).</p>`;
     }
-    draw_markers();
-    render_panel();
-    select_from_url();
 }
 
 start();
