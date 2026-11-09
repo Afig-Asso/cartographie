@@ -271,10 +271,13 @@ function spread() {
 
 // Un losange d'équipes posé sur un groupe d'entreprises cacherait son nombre : on le décale sur le bord du groupe,
 // à l'écran seulement (CSS translate, qui s'ajoute à la position calculée par Leaflet).
-let unhide_frame = null;
+// Calcul fait une fois le zoom posé : pendant un zoom (zoomend à chaque image) ou l'animation des groupes,
+// les décalages changeraient à chaque image et les losanges vibreraient.
+let unhide_timer = null;
 function unhide_counts() {
-    cancelAnimationFrame(unhide_frame);
-    unhide_frame = requestAnimationFrame(() => {
+    clearTimeout(unhide_timer);
+    unhide_timer = setTimeout(() => {
+        if(STATE.map.getPane('mapPane').classList.contains('leaflet-cluster-anim')) return;  // animationend relancera
         const pane = STATE.map.getPane('markerPane');
         const labs = [...pane.querySelectorAll('.leaflet-marker-icon.diamond')];
         labs.forEach((el) => { el.style.translate = ''; });
@@ -292,7 +295,7 @@ function unhide_counts() {
                 break;
             }
         }
-    });
+    }, 150);
 }
 
 const matches = (p) => STATE.query=='' || STATE.query.split(/\s+/).every((w) => p.text.includes(w));
